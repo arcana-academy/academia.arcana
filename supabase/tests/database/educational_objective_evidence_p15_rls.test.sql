@@ -61,7 +61,7 @@ values (
   3,
   'criterion_exact_match',
   'A resposta deve corresponder à resposta de referência após normalização de caixa e espaços.',
-  '1',
+  'criterion_exact_match_v1',
   2
 );
 

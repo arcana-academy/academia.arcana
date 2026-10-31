@@ -7,6 +7,9 @@ test-results
 *.log
 .env
 .env.*
+**/.env
+**/.env.*
+**/.npmrc
 
 # Never include local keys/certificates or local agent worktrees in build context
 *.pem
