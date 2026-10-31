@@ -298,6 +298,8 @@ src/core/architecture/data-ownership.test.ts
 | public.move_workspace_page | database-rpc | learning |
 | storage.grimoire-covers | storage-bucket | learning |
 
+The two educational-practice RPCs coordinate `education` (educational evidence) and `learning` (learner progress) without transferring ownership of `public.page_progress` from `learning`.
+
 ### Ownership rules
 
 1. Domain ownership does not move merely because another domain consumes the data.
@@ -952,7 +954,7 @@ The architecture remains a living system, but changes must be explicit, traceabl
 
 ## 27. C136 isolated ownership and boundaries composition — 2026-10-30 (DRAFT / NO-GO)
 
-This is a **proposed four-file architecture-only integration** based on `main` at `b4f5eb3cdd345002349e7d9d30f826b4a57e5889`; it is not a deployment, hosted database attestation or production authorization. It does not bring the seven intervening commits from the C134 source checkout or the fourteen-file change set of draft PR #844 into this branch.
+This is a **proposed four-file architecture-only integration** based on `main` at `b4f5eb3cdd345002349e7d9d30f826b4a57e5889`; it is not a deployment, hosted database attestation or production authorization. This historical C136 branch snapshot did not include the seven intervening commits from C134 or the separate changes of PR #844. The subsequent C146 local composition is documented below.
 
 ### 27.1 SQL resource owners and dependency boundaries
 
@@ -964,10 +966,36 @@ Core, domain and application use-case modules must not directly import concrete 
 
 The desired byte budgets are **16 KiB for Feedback, 64 KiB for Mestre Arcano, and 256 KiB for IA Aberta**, with HTTP 413 before full JSON parsing, quota consumption or provider invocation when exceeded. These targets are **not all enforced by this four-file patch**. At this `main` base, Feedback and Mestre Arcano still use `request.json()` directly; IA Aberta uses a bounded reader with a 256 KiB limit. Route-level work belongs in a separate change and requires its own tests.
 
-The draft PR #844 proposes additional bounded-request and provider-eligibility contracts. Its proposed code and historical checkpoints must **not** be represented as implemented in this branch merely because PR #844 exists. Catalog membership, locally supported chat adapters, runtime credentials and live provider reachability are distinct claims. No real inference call or hosted readiness validation is part of C136.
+The draft PR #844 proposed additional bounded-request and provider-eligibility contracts. This historical C136 record predates the C146 local composition below; only the explicitly listed C146 files and tests establish its proposed implementation in the local composition. Catalog membership, locally supported chat adapters, runtime credentials and live provider reachability are distinct claims. No real inference call or hosted readiness validation is part of C136.
 
 ### 27.3 Evidence, overlap and protected release gates
 
-The original C134 checkout passed 21 architecture tests, TypeScript, ESLint and `git diff --check` locally. Those results are historical evidence for the original checkout, **not automatic PASS for this new `main`-based composition**; C136-specific checks must be recorded against the actual branch. The overlapping Education ownership entries and this document require PR-level reconciliation with PR #844 before any future merge; PR #843 remains separate.
+The original C134 checkout passed 21 architecture tests, TypeScript, ESLint and `git diff --check` locally. Those results are historical evidence for the original checkout, **not automatic PASS for this new `main`-based composition**; C136-specific checks must be recorded against the actual branch. The overlap with PR #844 was reconciled in the subsequent isolated C146 composition below; future PR review and combined CI remain required. PR #843 remains separate.
 
 Keep Render Auto Deploy OFF and **NO-GO**. Production deployment, GHCR/image release, hosted migrations, independent human QA/security review, #536 (runtime/build secret isolation), #594 (custody/backup/recovery), #595 (authorized decisions) and C03/ORG02 remain separately gated. No technical PASS in C136 waives those controls.
+
+---
+
+## 28. C146 isolated PR #844 + #845 composition — 2026-10-31 (local only, NO-GO)
+
+**Baseline:** `b4f5eb3cdd345002349e7d9d30f826b4a57e5889`. The isolated
+composition combines proposal heads `bc8ec275e6451664be4c07b13e0e270ea0d93e54`
+(#844) and `679bdbefc0cc7fa9dfeb734fbcf7374c5b96d446` (#845) without
+modifying remote branches, `main`, hosted data, credentials or deployment.
+
+- **Data ownership:** keep Education-owned practice tables, Learning-owned
+  `page_progress`, cross-domain practice RPCs, and Infrastructure-owned quota
+  tables/RPCs from C136. Keep the stricter uniqueness assertions from #845.
+- **Bounded AI gateway:** additionally include the fourteen-file #844 proposal
+  covering shared bounded JSON requests, provider eligibility and route tests.
+  Catalog entries do not demonstrate live provider access.
+- **Release freeze:** historical Render promotion discussions are not current
+  authorization. The future sequence is source QA → independent approvals →
+  separately authorized manual deployment (Auto Deploy OFF) → production
+  smoke. Source `render.yaml` cannot attest to current hosted settings.
+- **Source of evidence:** each parent PR has independently green GitHub Actions
+  Quality Gate at its own head; neither proves this composite branch is green.
+  Record composite test results separately. No hosted SQL migration, inference,
+  image publication or production operation is authorized.
+- **Protected gates:** #536, #594, #595, C03/ORG02, independent human review
+  and any remaining material security findings continue to be NO-GO.

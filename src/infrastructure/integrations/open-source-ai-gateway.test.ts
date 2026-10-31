@@ -34,6 +34,15 @@ describe("open-source AI gateway outbound boundary", () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("rejects catalog-only providers without a gateway adapter before fetch", async () => {
+    vi.stubEnv("WEAVIATE_URL", "https://example.test");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(invokeOpenSourceAi({ ...input, provider: "weaviate" })).rejects.toThrow("provider_not_eligible");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects malformed endpoints before making an outbound request", async () => {
     vi.stubEnv("OLLAMA_BASE_URL", "https://user:password@example.test/?token=secret");
     const fetchMock = vi.fn();
