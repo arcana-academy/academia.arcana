@@ -34,6 +34,8 @@ export default defineConfig({
       "**/scripts/security/test-build-secret-isolation-536.test.cjs",
       // C135: native node:test contract belongs to the dedicated #536 workflow.
       "**/scripts/security/test-docker-build-context-536.test.cjs",
+      // C149: migration-ledger guard uses node:test; Vitest has no suite registration for it.
+      "**/scripts/security/check-personal-migration-ledger.test.mjs",
       // F7/F8 closure-safety tests use node:test; run with node --test, not Vitest.
       "**/scripts/issue-triage/apply-f-series-triage.test.mjs",
     ],
