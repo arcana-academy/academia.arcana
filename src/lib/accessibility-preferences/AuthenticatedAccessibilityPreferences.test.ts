@@ -5,7 +5,7 @@ import { createAuthenticatedAccessibilityPreferencesRepository } from "./Authent
 describe("AuthenticatedAccessibilityPreferences", () => {
   it("retorna null quando não existe preferência autenticada", async () => {
     const load = vi.fn().mockResolvedValue(null);
-    const save = vi.fn().mockResolvedValue(undefined);
+    const save = vi.fn().mockImplementation(async () => undefined);
 
     const repository =
       createAuthenticatedAccessibilityPreferencesRepository({
@@ -29,7 +29,7 @@ describe("AuthenticatedAccessibilityPreferences", () => {
     };
 
     const load = vi.fn().mockResolvedValue(preferences);
-    const save = vi.fn().mockResolvedValue(undefined);
+    const save = vi.fn().mockImplementation(async () => undefined);
 
     const repository =
       createAuthenticatedAccessibilityPreferencesRepository({
@@ -46,7 +46,7 @@ describe("AuthenticatedAccessibilityPreferences", () => {
 
   it("salva preferências autenticadas pela identidade", async () => {
     const load = vi.fn().mockResolvedValue(null);
-    const save = vi.fn().mockResolvedValue(undefined);
+    const save = vi.fn().mockImplementation(async () => undefined);
 
     const repository =
       createAuthenticatedAccessibilityPreferencesRepository({
@@ -77,7 +77,7 @@ describe("AuthenticatedAccessibilityPreferences", () => {
     );
 
     const load = vi.fn().mockRejectedValue(error);
-    const save = vi.fn().mockResolvedValue(undefined);
+    const save = vi.fn().mockImplementation(async () => undefined);
 
     const repository =
       createAuthenticatedAccessibilityPreferencesRepository({
