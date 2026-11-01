@@ -35,6 +35,12 @@ describe("AuthForm", () => {
     expect(signInWithPassword).not.toHaveBeenCalled();
   });
 
+  it("retains password recovery without offering new accounts in personal mode", () => {
+    render(<AuthForm mode="login" showSignUpLink={false} />);
+    expect(screen.getByRole("link", { name: "Esqueci minha senha" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Criar conta" })).toBeNull();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
 
