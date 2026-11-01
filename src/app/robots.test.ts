@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import robots from "./robots";
 
 const authenticatedRoutes = [
@@ -20,6 +20,15 @@ const authenticatedRoutes = [
 ];
 
 describe("public crawl boundaries", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("blocks all crawlers without advertising a sitemap in owner-only mode", () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    const result = robots();
+    expect(result.rules).toEqual([{ userAgent: "*", disallow: "/" }]);
+    expect(result.sitemap).toBeUndefined();
+    expect(result.host).toBeUndefined();
+  });
   it("allows public landing and discourages crawling authenticated routes", () => {
     const rules = robots().rules;
     expect(Array.isArray(rules)).toBe(true);

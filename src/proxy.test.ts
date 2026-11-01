@@ -76,6 +76,26 @@ describe("proxy liveness isolation", () => {
     ]);
   });
 
+  it("allows robots.txt even with an absent personal owner and sends no-index", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    const response = await proxy(request("/robots.txt"));
+    expect(mocks.next).toHaveBeenCalledTimes(1);
+    expect(mocks.updateSession).not.toHaveBeenCalled();
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
+  });
+
+  it("sets no-index on sign-in and restricted app pages without changing public mode", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_OWNER_ID", "2b4813a6-2aa8-4129-a904-0b180356ce12");
+    const login = await proxy(request("/login"));
+    const sanctuary = await proxy(request("/santuario"));
+    expect(login.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
+    expect(sanctuary.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "");
+    const regular = await proxy(request("/login"));
+    expect(regular.headers.get("X-Robots-Tag")).toBeNull();
+  });
+
   it("redirects the public signup route to login in personal mode", async () => {
     vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
     vi.stubEnv(

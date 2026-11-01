@@ -14,6 +14,7 @@ import {
 import { updateSession } from "@/lib/supabase/proxy";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const PERSONAL_NO_INDEX = "noindex, nofollow, noarchive";
 
 function isCrossOriginMutation(request: NextRequest): boolean {
   if (SAFE_METHODS.has((request.method ?? "GET").toUpperCase())) return false;
@@ -85,12 +86,13 @@ export async function proxy(request: NextRequest) {
   const ownerId = personalMode ? getPersonalOwnerSubjectId() : null;
 
   // A misconfigured personal deployment must never silently become public.
-  if (personalMode && !ownerId && pathname !== "/api/health") {
+  if (personalMode && !ownerId && pathname !== "/api/health" && pathname !== "/robots.txt") {
     return NextResponse.json(
       { error: "personal_mode_configuration_unavailable" },
       { status: 503, headers: {
         "Cache-Control": "no-store",
         [cspHeaderName]: contentSecurityPolicy,
+        "X-Robots-Tag": PERSONAL_NO_INDEX,
       } },
     );
   }
@@ -100,6 +102,7 @@ export async function proxy(request: NextRequest) {
     const redirectResponse = NextResponse.redirect(new URL("/login", request.url));
     redirectResponse.headers.set("Cache-Control", "no-store");
     redirectResponse.headers.set(cspHeaderName, contentSecurityPolicy);
+    redirectResponse.headers.set("X-Robots-Tag", PERSONAL_NO_INDEX);
     return redirectResponse;
   }
 
@@ -108,7 +111,7 @@ export async function proxy(request: NextRequest) {
   // Gated routes resolve their session here, before the streamed shell can be
   // flushed, so anonymous visitors receive a real 307 instead of a 200 document.
   const response =
-    pathname === "/api/health"
+    pathname === "/api/health" || (personalMode && pathname === "/robots.txt")
       ? NextResponse.next({ request: { headers: requestHeaders } })
       : await updateSession(request, requestHeaders, {
           requireSession:
@@ -120,6 +123,7 @@ export async function proxy(request: NextRequest) {
           } : {}),
         });
   response.headers.set(cspHeaderName, contentSecurityPolicy);
+  if (personalMode) response.headers.set("X-Robots-Tag", PERSONAL_NO_INDEX);
 
   return response;
 }
