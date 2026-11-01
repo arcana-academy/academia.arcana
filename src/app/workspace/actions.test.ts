@@ -195,6 +195,7 @@ describe("Workspace Server Actions", () => {
       }),
     );
     expect(result).toEqual(grimoire);
+    expect(mocks.revalidateLearningViews).toHaveBeenCalledExactlyOnceWith("learning-hierarchy-changed");
   });
 
   it("creates a notebook after the end of the existing hierarchy", async () => {
@@ -216,6 +217,7 @@ describe("Workspace Server Actions", () => {
       }),
     );
     expect(result).toEqual(notebook);
+    expect(mocks.revalidateLearningViews).toHaveBeenCalledExactlyOnceWith("learning-hierarchy-changed");
   });
 
   it("creates a chapter after the end of the existing hierarchy", async () => {
@@ -237,6 +239,7 @@ describe("Workspace Server Actions", () => {
       }),
     );
     expect(result).toEqual(chapter);
+    expect(mocks.revalidateLearningViews).toHaveBeenCalledExactlyOnceWith("learning-hierarchy-changed");
   });
 
   it("creates a page with an empty document at the end of its chapter", async () => {
@@ -312,6 +315,8 @@ describe("Workspace Server Actions", () => {
       title: "Novo capítulo",
       updatedAt: expect.any(String),
     });
+    expect(mocks.revalidateLearningViews).toHaveBeenCalledTimes(3);
+    expect(mocks.revalidateLearningViews).toHaveBeenCalledWith("learning-hierarchy-changed");
   });
 
   it("rejects renaming when a title is blank", async () => {
@@ -349,6 +354,7 @@ describe("Workspace Server Actions", () => {
       expect(pageRepository.getById).not.toHaveBeenCalled();
       expect(pageRepository.listByChapter).not.toHaveBeenCalled();
       expect(result).toEqual(moveResult);
+      expect(mocks.revalidateLearningViews).toHaveBeenCalledExactlyOnceWith("learning-hierarchy-changed");
     },
   );
 
@@ -373,6 +379,7 @@ describe("Workspace Server Actions", () => {
       );
       expect(pageRepository.reorder).not.toHaveBeenCalled();
       expect(result).toEqual(boundaryResult);
+      expect(mocks.revalidateLearningViews).not.toHaveBeenCalled();
     },
   );
 
@@ -421,6 +428,7 @@ describe("Workspace Server Actions", () => {
     for (const run of cases) {
       await expect(run()).rejects.toBe(persistenceError);
     }
+    expect(mocks.revalidateLearningViews).not.toHaveBeenCalled();
   });
 
   it("rejects moving a page that cannot be found", async () => {

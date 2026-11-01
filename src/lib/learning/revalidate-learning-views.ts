@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 export const LEARNING_VIEW_PATHS = {
   "learning-hierarchy-changed": [
     "/workspace",
+    "/grimorios",
     "/santuario",
     "/academia",
     "/pratica",
