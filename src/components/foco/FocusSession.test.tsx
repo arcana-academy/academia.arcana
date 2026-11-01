@@ -118,7 +118,7 @@ describe("FocusSession", () => {
     vi.useFakeTimers();
     const completeSession = vi.fn()
       .mockRejectedValueOnce(new Error("private database error: owner_id=secret"))
-      .mockResolvedValueOnce(undefined);
+      .mockImplementationOnce(async () => undefined);
 
     render(
       <FocusSession
