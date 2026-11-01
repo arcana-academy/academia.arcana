@@ -284,7 +284,7 @@ describe("Workspace Server Actions", () => {
   });
 
   it("deletes a page through the page repository", async () => {
-    pageRepository.delete.mockResolvedValueOnce(undefined);
+    pageRepository.delete.mockImplementationOnce(async () => undefined);
 
     await deleteWorkspacePage("page-1");
 
@@ -494,7 +494,7 @@ describe("Workspace Server Actions", () => {
   });
 
   it("refreshes progress views only after status persistence succeeds", async () => {
-    mocks.setPageProgressStatus.mockResolvedValueOnce(undefined);
+    mocks.setPageProgressStatus.mockImplementationOnce(async () => undefined);
 
     await setWorkspacePageProgress({
       pageId: "page-1",
