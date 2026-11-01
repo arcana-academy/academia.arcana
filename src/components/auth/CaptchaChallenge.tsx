@@ -16,17 +16,20 @@ type CaptchaWidgetOptions = {
 
 type CaptchaApi = {
   render: (element: HTMLElement, options: CaptchaWidgetOptions) => CaptchaWidgetId;
-  remove: (widgetId: CaptchaWidgetId) => void;
+  remove?: (widgetId: CaptchaWidgetId) => void;
+  reset?: (widgetId: CaptchaWidgetId) => void;
 };
 
 type CaptchaWindow = Window & {
   turnstile?: CaptchaApi;
   hcaptcha?: CaptchaApi;
+  aaArcanaHCaptchaLoaded?: () => void;
+  aaArcanaHCaptchaReady?: boolean;
 };
 
 const SCRIPT_URLS: Record<AuthCaptchaProvider, string> = {
   turnstile: "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
-  hcaptcha: "https://js.hcaptcha.com/1/api.js?render=explicit",
+  hcaptcha: "https://js.hcaptcha.com/1/api.js?render=explicit&onload=aaArcanaHCaptchaLoaded&recaptchacompat=off",
 };
 
 function getCaptchaApi(provider: AuthCaptchaProvider): CaptchaApi | undefined {
@@ -67,12 +70,16 @@ export function CaptchaChallenge({ provider, siteKey, onTokenChange }: Props) {
 
     function mountWidget() {
       if (!active || widgetId !== undefined) return;
+      // hCaptcha requires its own onload callback. Script.onload can fire
+      // before the SDK is ready, especially on mobile/slow connections.
+      if (provider === "hcaptcha" && !(window as CaptchaWindow).aaArcanaHCaptchaReady) return;
       const api = getCaptchaApi(provider);
       if (!api) return;
       try {
         widgetId = api.render(element!, {
           sitekey: siteKey,
           size: provider === "turnstile" ? "flexible" : "compact",
+          ...(provider === "hcaptcha" ? { theme: "dark" } : {}),
           callback: (token) => {
             if (!active) return;
             setFailed(false);
@@ -84,6 +91,14 @@ export function CaptchaChallenge({ provider, siteKey, onTokenChange }: Props) {
       } catch {
         markError();
       }
+    }
+
+    if (provider === "hcaptcha") {
+      (window as CaptchaWindow).aaArcanaHCaptchaLoaded = () => {
+        (window as CaptchaWindow).aaArcanaHCaptchaReady = true;
+        document.dispatchEvent(new Event("aa-arcana-hcaptcha-ready"));
+      };
+      document.addEventListener("aa-arcana-hcaptcha-ready", mountWidget);
     }
 
     let script = document.querySelector<HTMLScriptElement>(
@@ -99,7 +114,9 @@ export function CaptchaChallenge({ provider, siteKey, onTokenChange }: Props) {
       document.head.appendChild(script);
     }
 
-    script.addEventListener("load", mountWidget);
+    if (provider === "turnstile") {
+      script.addEventListener("load", mountWidget);
+    }
     script.addEventListener("error", markError);
     mountWidget();
 
@@ -107,11 +124,14 @@ export function CaptchaChallenge({ provider, siteKey, onTokenChange }: Props) {
       active = false;
       script?.removeEventListener("load", mountWidget);
       script?.removeEventListener("error", markError);
+      document.removeEventListener("aa-arcana-hcaptcha-ready", mountWidget);
       if (widgetId !== undefined) {
         try {
-          getCaptchaApi(provider)?.remove(widgetId);
+          const api = getCaptchaApi(provider);
+          if (provider === "turnstile") api?.remove?.(widgetId);
+          else api?.reset?.(widgetId);
         } catch {
-          // The provider may have already removed an expired widget.
+          // The provider may have already invalidated the challenge.
         }
       }
     };
