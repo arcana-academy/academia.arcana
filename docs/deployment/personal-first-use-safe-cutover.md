@@ -61,6 +61,35 @@ Na leitura realizada para esta preparação, o verificador retornou 8 versões
 apenas hospedadas, 11 apenas no código, com saída 2. O arquivo temporário de
 versões foi excluído após a consulta.
 
+## 1A. Equivalência histórica — evidências de catálogo, sem carimbo
+
+Uma verificação **somente em leitura** do catálogo SQL hospedado confirmou os
+seguintes controles correspondentes às seis versões antigas com números
+diferentes dos registros aplicados. A correspondência é **funcional parcial**;
+não equivale a reexecutar os SQL nem a provar identidade byte a byte.
+
+| Migração da árvore (prefixo) | Versões hospedadas potencialmente correspondentes | Evidência de catálogo observada | Limitação |
+| --- | --- | --- | --- |
+| `20260929153000` — Foco e Amigos | `20260929124554`, `20260929142350` | `focus_sessions` e `friend_connections` existem com RLS; políticas próprias por usuário/participante; só `status` e `updated_at` são editáveis nos pedidos de amizade | Não foi demonstrada equivalência de todos os índices, defaults, constraints e DDL histórico |
+| `20260929202000` — Feedback Hub | `20260929201711`, `20260929201757` | `feedback_responses` existe, com RLS, SELECT/INSERT por proprietário autenticado, sem acesso anônimo | Os nomes das políticas hospedadas (`feedback_select_own`, `feedback_insert_own`) diferem dos nomes no arquivo (`feedback_responses_select_own`, `feedback_responses_insert_own`); não declarar SQL idêntico |
+| `20260929210000` — Feedback proprietário | `20260929202937` | `feedback_responses.user_id` está NOT NULL; autenticado pode SELECT/INSERT, não UPDATE | Evidência sobre contrato atual, não sobre histórico de execução |
+| `20261006162332` — Atualização por destinatário | `20261007230656` | Política `friend_connections_update_recipient`, `USING` e `WITH CHECK` vinculados a `recipient_id=auth.uid()` | Não fornece prova isolada sobre todas as regras da entidade |
+| `20261007170500` — Pedido pendente | `20261007230659` | INSERT em `friend_connections` exige solicitante autenticado e `status='pending'` | Não substitui teste de tentativa autenticada no banco restaurado |
+| `20261007230000` — Unicidade de páginas | `20261007230750` | `pages_chapter_id_position_unique` é DEFERRABLE; `move_workspace_page(uuid,text)` tem `SECURITY INVOKER`, lock de linha, troca temporária de constraint e EXECUTE negado a anônimos | O corpo integral e o histórico de dados não foram provados equivalentes |
+
+Os nomes `20260929124554` e outros acima são **versões realmente presentes** no
+histórico hospedado, não novos arquivos para criar. A diferença de nomenclatura
+no Feedback demonstra por que a simples igualdade de comportamento não permite
+marcar versões como equivalentes sem uma aprovação de migração histórica.
+
+**Veredito do delta histórico:** principais contratos técnicos **OBSERVADOS**;
+paridade de versões **BLOCKED**; aplicação/`migration repair` **NÃO
+AUTORIZADOS**. Para liberar a próxima etapa, um operador autorizado deve
+comparar integralmente as alterações históricas, registrar as diferenças
+remanescentes e avaliar um procedimento de reconciliação específico, com
+backup restaurável verificado antes de qualquer escrita hospedada. Não há
+correção SQL a aplicar automaticamente a partir destas observações.
+
 ## 2. Backup gratuito — três objetos recuperáveis, não apenas um dump
 
 A documentação Supabase confirma: projetos **Free** não recebem backups
