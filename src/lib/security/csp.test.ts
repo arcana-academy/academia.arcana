@@ -13,6 +13,7 @@ describe("createContentSecurityPolicy", () => {
     expect(csp).toContain("style-src 'self' 'nonce-abc123' https://use.typekit.net");
     expect(csp).toContain("script-src-attr 'none'");
     expect(csp).not.toContain("'unsafe-eval'");
+    expect(csp).toContain("https://hcaptcha.com https://*.hcaptcha.com");
     expect(csp).not.toContain("style-src 'self' 'unsafe-inline'");
   });
 
@@ -21,7 +22,7 @@ describe("createContentSecurityPolicy", () => {
 
     expect(csp).toContain("style-src-attr 'unsafe-inline'");
     expect(csp.split("; ")).toContain(
-      "style-src 'self' 'nonce-abc123' https://use.typekit.net",
+      "style-src 'self' 'nonce-abc123' https://use.typekit.net https://hcaptcha.com https://*.hcaptcha.com",
     );
   });
 
