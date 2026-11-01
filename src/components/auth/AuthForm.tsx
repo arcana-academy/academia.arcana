@@ -83,7 +83,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       if (mode === "recover") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth/callback?next=/redefinir-senha`,
-          ...(captchaEnabled ? { captchaToken: captchaToken! } : {}),
+          ...(captchaEnabled && captchaToken ? { captchaToken } : {}),
         });
 
         if (error) {
@@ -139,7 +139,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
-            ...(captchaEnabled ? { captchaToken: captchaToken! } : {}),
+            ...(captchaEnabled && captchaToken ? { captchaToken } : {}),
           },
         });
 
@@ -163,7 +163,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        ...(captchaEnabled ? { options: { captchaToken: captchaToken! } } : {}),
+        ...(captchaEnabled && captchaToken ? { options: { captchaToken } } : {}),
       });
 
       if (error) {
