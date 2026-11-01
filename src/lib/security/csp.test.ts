@@ -25,6 +25,14 @@ describe("createContentSecurityPolicy", () => {
     );
   });
 
+  it("allows only the CAPTCHA vendor script hosts as strict-dynamic fallbacks", () => {
+    const csp = createContentSecurityPolicy("abc123", { isDevelopment: false });
+    expect(csp).toContain("https://challenges.cloudflare.com");
+    expect(csp).toContain("https://js.hcaptcha.com");
+    expect(csp).toContain("frame-src 'self' https:");
+    expect(csp).not.toContain("'unsafe-eval'");
+  });
+
   it("keeps a strict policy with HTTPS upgrades in production", () => {
     const csp = createContentSecurityPolicy("abc123", { isDevelopment: false });
 
