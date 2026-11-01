@@ -74,7 +74,7 @@ export function CaptchaChallenge({ provider, siteKey, onTokenChange }: Props) {
 
     /** Render only after the provider signals that its SDK is ready. */
     function mountWidget() {
-      if (!active || widgetId !== undefined) return;
+      if (!active || !element || widgetId !== undefined) return;
       // hCaptcha requires its own onload callback. Script.onload can fire
       // before the SDK is ready, especially on mobile/slow connections.
       if (provider === "hcaptcha" && !(window as CaptchaWindow).aaArcanaHCaptchaReady) return;
