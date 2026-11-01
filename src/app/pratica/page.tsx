@@ -426,8 +426,9 @@ export default async function PraticaPage({
     redirect("/pratica");
   }
 
-  if (pages.length > 0 && !requestedPage) {
-    redirect(`/pratica?pagina=${encodeURIComponent(pages[0]!.id)}`);
+  const firstPage = pages[0];
+  if (firstPage && !requestedPage) {
+    redirect(`/pratica?pagina=${encodeURIComponent(firstPage.id)}`);
   }
 
   const overview = buildEducationalOverview(pages, items, attempts);
@@ -448,12 +449,6 @@ export default async function PraticaPage({
 
   if (selectedPage) {
     const pageHref = `/pratica?pagina=${encodeURIComponent(selectedPage.id)}`;
-    const itemHref = selectedItem
-      ? `${pageHref}&item=${encodeURIComponent(selectedItem.id)}`
-      : null;
-    const assessmentHref = selectedObjectiveItem
-      ? `${pageHref}&avaliacao=${encodeURIComponent(selectedObjectiveItem.id)}`
-      : null;
     const itemRequested = params.item !== undefined;
     const assessmentRequested = params.avaliacao !== undefined;
 
@@ -462,11 +457,11 @@ export default async function PraticaPage({
     }
 
     if (selectedItem && assessmentRequested) {
-      redirect(itemHref!);
+      redirect(`${pageHref}&item=${encodeURIComponent(selectedItem.id)}`);
     }
 
     if (selectedObjectiveItem && itemRequested) {
-      redirect(assessmentHref!);
+      redirect(`${pageHref}&avaliacao=${encodeURIComponent(selectedObjectiveItem.id)}`);
     }
 
     if (
