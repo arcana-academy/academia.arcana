@@ -527,6 +527,7 @@ describe("delivery infrastructure contract", () => {
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
       "NEXT_PUBLIC_APP_URL",
       "NEXT_PUBLIC_ADOBE_FONTS_KIT_ID",
+      "NEXT_PUBLIC_HCAPTCHA_SITEKEY",
       "NEXT_PUBLIC_HONEYBADGER_API_KEY",
       "NEXT_PUBLIC_HONEYBADGER_ASSETS_URL",
     ]) {
@@ -536,12 +537,13 @@ describe("delivery infrastructure contract", () => {
       expect(dockerfile).toContain(`${name}=\${${name}}`);
       expect(quality).toContain(`--build-arg ${name}=`);
 
-      if (name === "NEXT_PUBLIC_APP_URL" || name === "NEXT_PUBLIC_ADOBE_FONTS_KIT_ID") {
+      if (name === "NEXT_PUBLIC_APP_URL" || name === "NEXT_PUBLIC_ADOBE_FONTS_KIT_ID" || name === "NEXT_PUBLIC_HCAPTCHA_SITEKEY") {
         expect(blueprint).toContain(`key: ${name}`);
       }
     }
 
-    expect(blueprint).not.toMatch(/sb_secret_|service_role/i);
+    expect(blueprint).not.toMatch(/sb_secret_|service_role|HCAPTCHA_SECRET\s*:/i);
+    expect(quality).toContain("vars.NEXT_PUBLIC_HCAPTCHA_SITEKEY");
   });
 
   it("ships declared application icons so browsers never request a missing favicon", () => {
