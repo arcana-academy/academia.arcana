@@ -84,7 +84,9 @@ export const HCaptchaChallenge = forwardRef<
   const widgetId = useRef<number | null>(null);
   const callback = useRef(onTokenChange);
   const [loadError, setLoadError] = useState(false);
-  callback.current = onTokenChange;
+  useEffect(() => {
+    callback.current = onTokenChange;
+  }, [onTokenChange]);
 
   useImperativeHandle(ref, () => ({
     reset: () => {
@@ -97,8 +99,6 @@ export const HCaptchaChallenge = forwardRef<
 
   useEffect(() => {
     let active = true;
-    setLoadError(false);
-
     void loadHCaptcha()
       .then((api) => {
         if (!active || !container.current) return;
