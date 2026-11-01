@@ -53,6 +53,9 @@ Supabase Postgres + RLS
 The browser submits the password to Supabase Auth through the Supabase client. The application does not persist or log the password.
 
 ## 3.1. CAPTCHA requirement (incident 31 October 2026)
+Provider confirmed by the project owner: **hCaptcha**. The public hCaptcha
+sitekey and hostname allow-list still need to be verified before deploying.
+The code does not and must not read the hCaptcha secret.
 Supabase Auth returned `captcha_failed` with HTTP 400 for password login, signup,
 and password recovery when no `captcha_token` was supplied. This requires
 integrating the challenge in all three browser flows before enabling the
