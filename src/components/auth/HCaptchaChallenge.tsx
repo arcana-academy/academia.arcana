@@ -27,6 +27,7 @@ type HCaptchaAPI = {
 declare global {
   interface Window {
     hcaptcha?: HCaptchaAPI;
+    __aaHCaptchaReady?: () => void;
   }
 }
 
@@ -48,19 +49,21 @@ function loadHCaptcha(): Promise<HCaptchaAPI> {
   if (!loadingScript) {
     loadingScript = new Promise<HCaptchaAPI>((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = "https://js.hcaptcha.com/1/api.js?render=explicit";
+      // hCaptcha's onload callback waits for its internal DOM initialization.
+      // Calling render from the script load event can race that initialization.
+      window.__aaHCaptchaReady = () => {
+        if (window.hcaptcha) resolve(window.hcaptcha);
+        else reject(new Error("hCaptcha SDK unavailable"));
+      };
+      script.src =
+        "https://js.hcaptcha.com/1/api.js?onload=__aaHCaptchaReady&render=explicit&recaptchacompat=off";
       script.async = true;
       script.addEventListener(
-        "load",
-        () =>
-          window.hcaptcha
-            ? resolve(window.hcaptcha)
-            : reject(new Error("hCaptcha SDK unavailable")),
-        { once: true },
-      );
-      script.addEventListener(
         "error",
-        () => reject(new Error("hCaptcha SDK failed to load")),
+        () => {
+          script.remove();
+          reject(new Error("hCaptcha SDK failed to load"));
+        },
         { once: true },
       );
       document.head.appendChild(script);
