@@ -9,6 +9,7 @@ type CaptchaWidgetId = string | number;
 type CaptchaWidgetOptions = {
   sitekey: string;
   size?: "compact" | "flexible";
+  theme?: "dark" | "light";
   callback: (token: string) => void;
   "expired-callback": () => void;
   "error-callback": () => void;
@@ -32,6 +33,7 @@ const SCRIPT_URLS: Record<AuthCaptchaProvider, string> = {
   hcaptcha: "https://js.hcaptcha.com/1/api.js?render=explicit&onload=aaArcanaHCaptchaLoaded&recaptchacompat=off",
 };
 
+/** Resolve the configured browser SDK without introducing a package dependency. */
 function getCaptchaApi(provider: AuthCaptchaProvider): CaptchaApi | undefined {
   return (window as CaptchaWindow)[provider];
 }
@@ -57,17 +59,20 @@ export function CaptchaChallenge({ provider, siteKey, onTokenChange }: Props) {
     const element = container.current;
     if (!element) return;
 
+    /** Clear a one-time token after an expiration or failed verification. */
     function invalidate() {
       if (!active) return;
       onTokenChange(null);
     }
 
+    /** Keep the form blocked when a provider script or challenge fails. */
     function markError() {
       if (!active) return;
       invalidate();
       setFailed(true);
     }
 
+    /** Render only after the provider signals that its SDK is ready. */
     function mountWidget() {
       if (!active || widgetId !== undefined) return;
       // hCaptcha requires its own onload callback. Script.onload can fire
@@ -76,7 +81,7 @@ export function CaptchaChallenge({ provider, siteKey, onTokenChange }: Props) {
       const api = getCaptchaApi(provider);
       if (!api) return;
       try {
-        widgetId = api.render(element!, {
+        widgetId = api.render(element, {
           sitekey: siteKey,
           size: provider === "turnstile" ? "flexible" : "compact",
           ...(provider === "hcaptcha" ? { theme: "dark" } : {}),
