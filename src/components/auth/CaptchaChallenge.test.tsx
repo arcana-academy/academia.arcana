@@ -26,7 +26,13 @@ describe("CaptchaChallenge — hCaptcha", () => {
   it("waits for SDK readiness, emits the token and resets the widget", () => {
     const callback = vi.fn();
     const reset = vi.fn();
-    const renderWidget = vi.fn((_node, options) => {
+    const renderWidget = vi.fn((_node: HTMLElement, options: {
+      sitekey: string;
+      size?: string;
+      theme?: string;
+      callback: (token: string) => void;
+      "expired-callback": () => void;
+    }) => {
       options.callback("synthetic-hcaptcha-token");
       return "widget-01";
     });
