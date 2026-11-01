@@ -50,7 +50,7 @@ describe("FocusSessionService", () => {
   it("completes only through the repository contract", async () => {
     const repository = {
       start: vi.fn(),
-      complete: vi.fn().mockResolvedValue(undefined),
+      complete: vi.fn().mockImplementation(async () => undefined),
     };
     const service = new FocusSessionService(repository);
 
