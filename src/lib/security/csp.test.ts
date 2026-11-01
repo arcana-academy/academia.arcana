@@ -10,7 +10,7 @@ describe("createContentSecurityPolicy", () => {
     const csp = createContentSecurityPolicy("abc123", { isDevelopment: false });
 
     expect(csp).toContain("script-src 'self' 'nonce-abc123' 'strict-dynamic'");
-    expect(csp).toContain("style-src 'self' 'nonce-abc123' https://use.typekit.net");
+    expect(csp).toContain("style-src 'self' 'nonce-abc123' https://use.typekit.net https://hcaptcha.com https://*.hcaptcha.com");
     expect(csp).toContain("script-src-attr 'none'");
     expect(csp).not.toContain("'unsafe-eval'");
     expect(csp).not.toContain("style-src 'self' 'unsafe-inline'");
@@ -21,14 +21,15 @@ describe("createContentSecurityPolicy", () => {
 
     expect(csp).toContain("style-src-attr 'unsafe-inline'");
     expect(csp.split("; ")).toContain(
-      "style-src 'self' 'nonce-abc123' https://use.typekit.net",
+      "style-src 'self' 'nonce-abc123' https://use.typekit.net https://hcaptcha.com https://*.hcaptcha.com",
     );
   });
 
   it("allows only the CAPTCHA vendor script hosts as strict-dynamic fallbacks", () => {
     const csp = createContentSecurityPolicy("abc123", { isDevelopment: false });
     expect(csp).toContain("https://challenges.cloudflare.com");
-    expect(csp).toContain("https://js.hcaptcha.com");
+    expect(csp).toContain("https://hcaptcha.com");
+    expect(csp).toContain("https://*.hcaptcha.com");
     expect(csp).toContain("frame-src 'self' https:");
     expect(csp).not.toContain("'unsafe-eval'");
   });
@@ -48,7 +49,7 @@ describe("createContentSecurityPolicy", () => {
     expect(csp).toContain("'unsafe-eval'");
     expect(csp).toContain("connect-src 'self' https: wss: ws: http:");
     expect(csp).toContain(
-      "style-src 'self' 'unsafe-inline' https://use.typekit.net",
+      "style-src 'self' 'unsafe-inline' https://use.typekit.net https://hcaptcha.com https://*.hcaptcha.com",
     );
     expect(csp).not.toContain("upgrade-insecure-requests");
     expect(csp).toContain("style-src-attr 'unsafe-inline'");
