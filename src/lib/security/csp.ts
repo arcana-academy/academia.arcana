@@ -31,11 +31,11 @@ export function createContentSecurityPolicy(
     // Scripts stay nonce-based in both modes. `'unsafe-eval'` is only present
     // in the development report-only policy, which is never enforced.
     isDevelopment
-      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
-      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' https://hcaptcha.com https://*.hcaptcha.com`
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://hcaptcha.com https://*.hcaptcha.com`,
     isDevelopment
-      ? "style-src 'self' 'unsafe-inline' https://use.typekit.net"
-      : `style-src 'self' 'nonce-${nonce}' https://use.typekit.net`,
+      ? "style-src 'self' 'unsafe-inline' https://use.typekit.net https://hcaptcha.com https://*.hcaptcha.com"
+      : `style-src 'self' 'nonce-${nonce}' https://use.typekit.net https://hcaptcha.com https://*.hcaptcha.com`,
     "script-src-attr 'none'",
     // React `style={{...}}` attributes cannot carry a nonce, so the attribute
     // directive must allow inline styles. Keeping it scoped to
@@ -45,9 +45,9 @@ export function createContentSecurityPolicy(
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://use.typekit.net",
     isDevelopment
-      ? "connect-src 'self' https: wss: ws: http:"
-      : "connect-src 'self' https: wss:",
-    "frame-src 'self' https:",
+      ? "connect-src 'self' https: wss: ws: http: https://hcaptcha.com https://*.hcaptcha.com"
+      : "connect-src 'self' https: wss: https://hcaptcha.com https://*.hcaptcha.com",
+    "frame-src 'self' https: https://hcaptcha.com https://*.hcaptcha.com",
     "media-src 'self' data: blob: https:",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
