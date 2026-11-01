@@ -31,8 +31,8 @@ export function createContentSecurityPolicy(
     // Scripts stay nonce-based in both modes. `'unsafe-eval'` is only present
     // in the development report-only policy, which is never enforced.
     isDevelopment
-      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
-      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' https://challenges.cloudflare.com https://js.hcaptcha.com`
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://challenges.cloudflare.com https://js.hcaptcha.com`,
     isDevelopment
       ? "style-src 'self' 'unsafe-inline' https://use.typekit.net"
       : `style-src 'self' 'nonce-${nonce}' https://use.typekit.net`,
