@@ -21,6 +21,14 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
+vi.mock("./CaptchaChallenge", () => ({
+  CaptchaChallenge: ({ onTokenChange }: { onTokenChange: (token: string) => void }) => (
+    <button type="button" onClick={() => onTokenChange("synthetic-captcha-token")}>
+      Concluir verificação de segurança
+    </button>
+  ),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh }),
 }));
@@ -36,6 +44,7 @@ describe("AuthForm", () => {
   });
 
   beforeEach(() => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
 
     signInWithPassword.mockResolvedValue({ error: null });
@@ -76,6 +85,54 @@ describe("AuthForm", () => {
       expect(push).toHaveBeenCalledWith("/santuario");
       expect(refresh).toHaveBeenCalled();
     });
+  });
+
+  it("blocks password login without CAPTCHA and forwards the verified token", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_CAPTCHA_PROVIDER", "turnstile");
+    vi.stubEnv("NEXT_PUBLIC_AUTH_CAPTCHA_SITE_KEY", "synthetic-public-site-key");
+    render(<AuthForm mode="login" />);
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "student@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "correct-password" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(signInWithPassword).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Conclua a verificação de segurança");
+
+    fireEvent.click(screen.getByRole("button", { name: "Concluir verificação de segurança" }));
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    await waitFor(() => {
+      expect(signInWithPassword).toHaveBeenCalledWith({
+        email: "student@example.com",
+        password: "correct-password",
+        options: { captchaToken: "synthetic-captcha-token" },
+      });
+    });
+  });
+
+  it("sends CAPTCHA for signup and password recovery without leaking account existence", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_CAPTCHA_PROVIDER", "hcaptcha");
+    vi.stubEnv("NEXT_PUBLIC_AUTH_CAPTCHA_SITE_KEY", "synthetic-public-site-key");
+
+    const signup = render(<AuthForm mode="signup" />);
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "student@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "correct-password" } });
+    fireEvent.change(screen.getByLabelText("Confirmar senha"), { target: { value: "correct-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Concluir verificação de segurança" }));
+    fireEvent.click(screen.getByRole("button", { name: "Criar conta" }));
+    await waitFor(() => expect(signUp).toHaveBeenCalledWith(expect.objectContaining({
+      options: expect.objectContaining({ captchaToken: "synthetic-captcha-token" }),
+    })));
+
+    signup.unmount();
+    render(<AuthForm mode="recover" />);
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "student@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Concluir verificação de segurança" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar instruções" }));
+    await waitFor(() => expect(resetPasswordForEmail).toHaveBeenCalledWith(
+      "student@example.com",
+      expect.objectContaining({ captchaToken: "synthetic-captcha-token" }),
+    ));
+    expect(screen.getByRole("alert")).toHaveTextContent("Se o endereço estiver cadastrado");
   });
 
   it("shows a non-sensitive error when login fails", async () => {
