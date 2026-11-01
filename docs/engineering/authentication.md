@@ -52,6 +52,32 @@ Supabase Postgres + RLS
 
 The browser submits the password to Supabase Auth through the Supabase client. The application does not persist or log the password.
 
+## 3.1. CAPTCHA requirement (incident 31 October 2026)
+Supabase Auth returned `captcha_failed` with HTTP 400 for password login, signup,
+and password recovery when no `captcha_token` was supplied. This requires
+integrating the challenge in all three browser flows before enabling the
+provider-side CAPTCHA toggle.
+
+Configure `NEXT_PUBLIC_AUTH_CAPTCHA_PROVIDER` as `turnstile` or `hcaptcha`,
+and `NEXT_PUBLIC_AUTH_CAPTCHA_SITE_KEY` to the matching provider's **public**
+site key. The provider and secret key **must match the active Supabase Auth**
+Bot and Abuse Protection configuration. Never put the CAPTCHA secret key in
+GitHub, browser code, or `NEXT_PUBLIC_*` variables. The authorized operator
+must verify the provider in the Supabase dashboard; it is not readable by the
+connected Supabase tools.
+
+The CAPTCHA component obtains a temporary token, sends it only to Supabase
+Auth, blocks requests without a token when configured, and reinitializes the
+challenge after an authentication attempt. Tokens are not logged. Keep the
+provider's hostname allow-list limited to the actual live domain, and validate
+with a test identity before opening public access. A Render build must include
+the public site key at build time to embed it in Next.js client assets.
+
+No supported provider/site key is hard-coded; the code does not relax RLS,
+password requirements, or the protected release's NO-GO. An absent provider
+configuration still requires an operator fix; deploying only this source
+change cannot resolve the current hosted login failure.
+
 ## 4. Signup and recovery
 `AuthForm` uses Supabase Auth for signup, email confirmation, password recovery, and password update. The application does not implement its own password store.
 
