@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isPermittedPersonalSubject } from "@/lib/security/personal-access";
 
 import { createResolveSubjectId } from "./resolve-subject-id";
 
@@ -16,7 +17,9 @@ export function createResolveSubjectIdServer(
 
     return {
       data: {
-        claims: result.data?.claims ?? null,
+        claims: isPermittedPersonalSubject(result.data?.claims?.sub)
+          ? result.data?.claims ?? null
+          : null,
       },
       error: result.error,
     };

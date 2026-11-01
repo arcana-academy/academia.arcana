@@ -1,8 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createResolveSubjectIdServer } from "./resolve-subject-id-server";
 
 describe("createResolveSubjectIdServer", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("does not expose foreign subject identity to the root layout in personal mode", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_OWNER_ID", "2b4813a6-2aa8-4129-a904-0b180356ce12");
+    const createSupabaseClient = vi.fn().mockResolvedValue({ auth: { getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "foreign-subject" } }, error: null }) } });
+    await expect(createResolveSubjectIdServer(createSupabaseClient)()).resolves.toBeNull();
+  });
   it("resolve o subjectId usando o cliente Supabase do servidor", async () => {
     const getClaims = vi.fn().mockResolvedValue({
       data: {

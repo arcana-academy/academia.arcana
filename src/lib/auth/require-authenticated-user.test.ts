@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
@@ -18,6 +18,7 @@ vi.mock("@/lib/supabase/server", () => ({
 import { requireAuthenticatedUser } from "./require-authenticated-user";
 
 describe("requireAuthenticatedUser", () => {
+  afterEach(() => vi.unstubAllEnvs());
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -28,6 +29,14 @@ describe("requireAuthenticatedUser", () => {
 
     await expect(requireAuthenticatedUser()).resolves.toEqual(claims);
     expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("refuses a valid but non-owner session in personal mode", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_OWNER_ID", "2b4813a6-2aa8-4129-a904-0b180356ce12");
+    mocks.getClaims.mockResolvedValue({ data: { claims: { sub: "different-subject" } }, error: null });
+    await requireAuthenticatedUser();
+    expect(mocks.redirect).toHaveBeenCalledWith("/login");
   });
 
   it("redirects unauthenticated requests to login", async () => {

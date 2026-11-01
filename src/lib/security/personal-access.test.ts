@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getPersonalOwnerSubjectId,
+  isPermittedPersonalSubject,
   isPersonalModeEnabled,
   isPersonalModePublicPath,
 } from "./personal-access";
@@ -33,6 +34,18 @@ describe("server-only personal access configuration", () => {
     expect(getPersonalOwnerSubjectId()).toBe(
       "2b4813a6-2aa8-4129-a904-0b180356ce12",
     );
+  });
+
+  it("denies other subjects and missing owner in personal mode", () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_OWNER_ID", "");
+    expect(isPermittedPersonalSubject("2b4813a6-2aa8-4129-a904-0b180356ce12")).toBe(false);
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_OWNER_ID", "2b4813a6-2aa8-4129-a904-0b180356ce12");
+    expect(isPermittedPersonalSubject(null)).toBe(false);
+    expect(isPermittedPersonalSubject("7b4813a6-2aa8-4129-a904-0b180356ce12")).toBe(false);
+    expect(isPermittedPersonalSubject("2B4813A6-2AA8-4129-A904-0B180356CE12")).toBe(true);
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "");
+    expect(isPermittedPersonalSubject("legacy-subject")).toBe(true);
   });
 
   it("keeps only existing sign-in and recovery endpoints reachable without login", () => {

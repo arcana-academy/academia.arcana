@@ -21,3 +21,14 @@ export function isPersonalModePublicPath(pathname: string): boolean {
     pathname === "/recuperar-senha" ||
     pathname === "/auth/callback";
 }
+
+/**
+ * Defense in depth for Server Actions, data loaders and authenticated APIs.
+ * With personal mode disabled, existing multi-user behavior is unchanged.
+ * Invalid personal configuration denies every subject.
+ */
+export function isPermittedPersonalSubject(subjectId: string | null | undefined): boolean {
+  if (!isPersonalModeEnabled()) return true;
+  const owner = getPersonalOwnerSubjectId();
+  return !!owner && !!subjectId && subjectId.toLowerCase() === owner;
+}
