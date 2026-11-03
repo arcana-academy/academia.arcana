@@ -104,9 +104,20 @@ try {
   await expect(page.locator("#workspace-new-page-title")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("Não foi possível carregar seu Workspace")).toHaveCount(0);
 
+  // Sincronize com a hidratação do React: o HTML SSR pode estar visível
+  // antes dos onChange/submit handlers estarem ativos no Next.js dev.
+  // Não forçar cliques em botões disabled nem alterar o produto para o teste.
+  await page.waitForFunction(() => {
+    const input = document.querySelector("#workspace-new-page-title");
+    return !!input && Object.keys(input).some((key) => key.startsWith("__reactProps$"));
+  }, null, { timeout: 90_000 });
+  console.log("PASS: formulário de criação hidratado antes de receber edição");
+
   // Criação real pelo formulário conectado à Server Action, sem semear a página por API.
   await page.locator("#workspace-new-page-title").fill(pageTitle);
-  await page.getByRole("button", { name: "Criar página", exact: true }).click();
+  const createButton = page.getByRole("button", { name: "Criar página", exact: true });
+  await expect(createButton).toBeEnabled({ timeout: 20_000 });
+  await createButton.click();
   const editor = page.locator('article[aria-label="Editor da página"]');
   await expect(editor).toBeVisible({ timeout: 75_000 });
   await expect(editor.locator("#workspace-page-title")).toHaveValue(pageTitle);
