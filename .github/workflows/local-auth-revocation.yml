@@ -8,6 +8,14 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      qa_scenario:
+        description: Cenário sintético manual - sem release
+        required: true
+        type: choice
+        options:
+          - grimorios-persistencia-nova-sessao
+          - santuario-estados-progresso
 
 permissions:
   contents: read
@@ -70,6 +78,7 @@ jobs:
     # Isolado: somente acionamento manual neste branch, nunca PR/push.
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.qa_scenario == 'grimorios-persistencia-nova-sessao' &&
       github.repository == 'arcana-academy/academiaarcana' &&
       github.actor == 'arcana-academy' &&
       github.ref == 'refs/heads/work/aa-qa-remoto-isolado-20261103'
@@ -177,5 +186,171 @@ jobs:
       - name: Encerrar somente Supabase sintético efêmero do runner
         if: always()
         run: |
+          supabase stop --no-backup || true
+          docker network rm "$QA_NETWORK" || true
+
+  santuario-estados-progresso:
+    # Isolado: somente acionamento manual neste branch, nunca PR/push.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.qa_scenario == 'santuario-estados-progresso' &&
+      github.repository == 'arcana-academy/academiaarcana' &&
+      github.actor == 'arcana-academy' &&
+      github.ref == 'refs/heads/work/aa-qa-remoto-isolado-20261103'
+    name: Estados vazios e progresso real do Santuário - NO-GO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+      AA_QA_REMOTE_SYNTHETIC: '1'
+      QA_SCENARIO: santuario-estados-progresso
+      EXPECTED_SHA: ${{ github.sha }}
+      QA_NETWORK: aa-qa-loopback-${{ github.run_id }}
+    steps:
+      - name: Conferir alvo e variáveis administrativas
+        run: |
+          set -euo pipefail
+          test "$GITHUB_SHA" = "$EXPECTED_SHA"
+          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$GITHUB_REF" = 'refs/heads/work/aa-qa-remoto-isolado-20261103'
+          for name in SUPABASE_ACCESS_TOKEN DATABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY RENDER_API_KEY; do
+            test -z "${!name:-}" || { echo "BLOCKED: variável $name não permitida"; exit 1; }
+          done
+          echo 'Pré-condições de QA local sintético: PASS'
+
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout no commit fixado
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Comprovar fonte e script do cenário
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -f scripts/qa/remote-synthetic-sanctuary-browser.mjs
+          test -z "$(git status --porcelain)"
+          node --check scripts/qa/remote-synthetic-sanctuary-browser.mjs
+          echo 'Fonte e sintaxe sintética: PASS'
+
+      - name: Node 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: npm 11 fixado
+        run: |
+          corepack enable npm
+          corepack prepare npm@11.19.1 --activate
+          test "$(npm --version)" = '11.19.1'
+
+      - name: Supabase CLI efêmero
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.118.0
+
+      - name: Dependências sem scripts de instalação
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Rede Docker com bind padrão loopback
+        run: |
+          set -euo pipefail
+          docker network create \
+            -o com.docker.network.bridge.host_binding_ipv4=127.0.0.1 \
+            "$QA_NETWORK"
+          test "$(docker network inspect --format '{{index .Options "com.docker.network.bridge.host_binding_ipv4"}}' "$QA_NETWORK")" = 127.0.0.1
+
+      - name: Supabase descartável exclusivamente nessa rede
+        run: supabase start --network-id "$QA_NETWORK"
+
+      - name: Provar contêineres e bindings local-only antes do teste
+        run: |
+          set -euo pipefail
+          test "$(docker network inspect --format '{{len .Containers}}' "$QA_NETWORK")" -ge 6
+          services="$(docker ps --filter "network=$QA_NETWORK" --format '{{.Names}}')"
+          test -n "$services"
+          while IFS= read -r container; do
+            case "$container" in supabase_*) ;; *) echo 'BLOCKED: contêiner inesperado'; exit 1 ;; esac
+            ips="$(docker inspect --format '{{range $port, $items := .NetworkSettings.Ports}}{{range $items}}{{println .HostIp}}{{end}}{{end}}' "$container")"
+            while IFS= read -r ip; do
+              test -n "$ip" || continue
+              case "$ip" in 127.0.0.1|::1) ;; *) echo "BLOCKED: binding exposto no $container"; exit 1 ;; esac
+            done <<< "$ips"
+          done <<< "$services"
+          for required in supabase_kong supabase_db supabase_inbucket; do
+            container="$(printf '%s\n' "$services" | grep -E "^${required}_" | head -n 1)"
+            test -n "$container"
+            test -n "$(docker inspect --format '{{range $port, $items := .NetworkSettings.Ports}}{{range $items}}{{println .HostIp}}{{end}}{{end}}' "$container")"
+          done
+          echo 'Rede e bindings: PASS'
+
+      - name: Carregar configuração efêmera do Supabase local sem imprimir credenciais
+        run: |
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import {appendFileSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          const output = execFileSync('supabase', ['status','-o','env'], {encoding:'utf8',timeout:20000});
+          const vars = Object.fromEntries(output.split(/\r?\n/).flatMap(line => {
+            const m=line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
+            return m?[[m[1],m[2].replace(/^["']|["']$/g,'')]]:[];
+          }));
+          const url = new URL(vars.API_URL);
+          assert.equal(url.protocol,'http:');
+          assert.equal(url.hostname,'127.0.0.1');
+          assert.equal(url.port,'54321');
+          assert.ok(vars.ANON_KEY && !/[\r\n]/.test(vars.ANON_KEY));
+          appendFileSync(process.env.GITHUB_ENV,
+            'NEXT_PUBLIC_SUPABASE_URL='+url.toString()+'\n' +
+            'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY='+vars.ANON_KEY+'\n'
+          );
+          console.log('Configuração sintética de loopback: PASS');
+          NODE
+
+      - name: Chromium do Playwright apenas no runner
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Inicializar Next.js local para navegação autenticada sem login pela UI
+        run: |
+          set -euo pipefail
+          npm run dev -- --hostname 127.0.0.1 --port 3000 > "$RUNNER_TEMP/aa-next-sanctuary.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/aa-next-sanctuary.pid"
+          ready=0
+          for i in $(seq 1 90); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:3000/login; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/aa-next-sanctuary.pid")" 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          if test "$ready" -ne 1; then
+            echo 'BLOCKED: Next.js local não ficou saudável'
+            exit 1
+          fi
+          echo 'Next.js local para navegador sintético: PASS'
+
+      - name: Estados vazios e progresso persistido do Santuário em Chromium
+        run: node scripts/qa/remote-synthetic-sanctuary-browser.mjs
+
+      - name: Encerrar Next.js e Supabase sintéticos efêmeros do runner
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/aa-next-sanctuary.pid"; then
+            kill "$(cat "$RUNNER_TEMP/aa-next-sanctuary.pid")" 2>/dev/null || true
+          fi
           supabase stop --no-backup || true
           docker network rm "$QA_NETWORK" || true
