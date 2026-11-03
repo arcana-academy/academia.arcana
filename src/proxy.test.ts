@@ -107,6 +107,19 @@ describe("proxy liveness isolation", () => {
     expect(mocks.updateSession).not.toHaveBeenCalled();
   });
 
+  it("redirects local synthetic signup without enabling the hosted personal gate", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("ACADEMIA_ARCANA_LOCAL_PREVIEW", "true");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:54321");
+    const response = await proxy(request("/cadastro"));
+    expect(response.headers.get("Location")).toBe("https://app.example/login");
+    expect(mocks.updateSession).not.toHaveBeenCalled();
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    mocks.redirect.mockClear();
+    await proxy(request("/cadastro"));
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
   it("bypasses Supabase session checks only for exact /api/health", async () => {
     const response = await proxy(request("/api/health"));
     expect(mocks.updateSession).not.toHaveBeenCalled();

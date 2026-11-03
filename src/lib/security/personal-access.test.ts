@@ -4,6 +4,7 @@ import {
   isPermittedPersonalSubject,
   isPersonalModeEnabled,
   isPersonalModePublicPath,
+  isSyntheticLocalPreview,
 } from "./personal-access";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -12,6 +13,19 @@ describe("server-only personal access configuration", () => {
   it("does not enable personal mode implicitly", () => {
     vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "");
     expect(isPersonalModeEnabled()).toBe(false);
+  });
+
+  it("enables local preview only with an explicitly approved loopback Supabase", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("ACADEMIA_ARCANA_LOCAL_PREVIEW", "true");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:54321");
+    expect(isSyntheticLocalPreview()).toBe(true);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    expect(isSyntheticLocalPreview()).toBe(false);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://localhost:54321/");
+    expect(isSyntheticLocalPreview()).toBe(true);
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isSyntheticLocalPreview()).toBe(false);
   });
 
   it("requires the explicit true switch", () => {

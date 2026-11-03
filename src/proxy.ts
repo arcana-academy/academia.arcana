@@ -10,6 +10,7 @@ import {
   getPersonalOwnerSubjectId,
   isPersonalModeEnabled,
   isPersonalModePublicPath,
+  isSyntheticLocalPreview,
 } from "@/lib/security/personal-access";
 import { updateSession } from "@/lib/supabase/proxy";
 
@@ -98,7 +99,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Hide the sign-up entrypoint at the edge, not only in the UI.
-  if (personalMode && pathname === "/cadastro") {
+  if ((personalMode || isSyntheticLocalPreview()) && pathname === "/cadastro") {
     const redirectResponse = NextResponse.redirect(new URL("/login", request.url));
     redirectResponse.headers.set("Cache-Control", "no-store");
     redirectResponse.headers.set(cspHeaderName, contentSecurityPolicy);

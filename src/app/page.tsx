@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { AcademiaArcanaLanding } from "@/components/generated/AcademiaArcanaLanding";
 import { createClient } from "@/lib/supabase/server";
 import { pageMetadata } from "@/lib/seo/site-metadata";
-import { isPersonalModeEnabled } from "@/lib/security/personal-access";
+import { isPersonalModeEnabled, isSyntheticLocalPreview } from "@/lib/security/personal-access";
 
 export const metadata = pageMetadata("/");
 
@@ -17,9 +17,10 @@ async function hasAuthenticatedSession(): Promise<boolean> {
   }
 }
 
-/** Public entry point: unauthenticated users see the learning journey landing. */
+/** Authenticated visitors go to the real Sanctuary; personal/local QA enters at login. */
 export default async function Page() {
   if (await hasAuthenticatedSession()) redirect("/santuario");
+  if (isPersonalModeEnabled() || isSyntheticLocalPreview()) redirect("/login");
 
-  return <AcademiaArcanaLanding personalMode={isPersonalModeEnabled()} />;
+  return <AcademiaArcanaLanding personalMode={false} />;
 }

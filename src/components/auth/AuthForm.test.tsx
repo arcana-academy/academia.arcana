@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthForm } from "./AuthForm";
@@ -26,6 +27,20 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("AuthForm", () => {
+  it("uses POST and blocks submit until client hydration to avoid password query strings", () => {
+    const serverHtml = renderToStaticMarkup(<AuthForm mode="login" />);
+    expect(serverHtml).toMatch(/<form[^>]*method="post"/);
+    expect(serverHtml).toMatch(/<button[^>]*disabled[^>]*>Preparando formulário…<\/button>/);
+    expect(serverHtml).not.toContain('method="get"');
+    const shell = document.createElement("div");
+    shell.innerHTML = serverHtml;
+    const fields = shell.querySelectorAll("form input");
+    expect(fields.length).toBeGreaterThan(0);
+    for (const field of fields) {
+      expect(field).toBeDisabled();
+    }
+  });
+
   it("shows approved visual login layout without replacing authentication actions", () => {
     render(<AuthForm mode="login" />);
     expect(screen.getByRole("heading", { name: "Entre no seu santuário de estudos" })).toBeTruthy();

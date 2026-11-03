@@ -10,6 +10,16 @@ export function isPersonalModeEnabled(): boolean {
   return process.env.ACADEMIA_ARCANA_PERSONAL_MODE === "true";
 }
 
+/** Local synthetic QA is login-first, without activating the hosted owner gate. */
+export function isSyntheticLocalPreview(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
+  return (
+    process.env.NODE_ENV === "development" &&
+    process.env.ACADEMIA_ARCANA_LOCAL_PREVIEW === "true" &&
+    (url === "http://127.0.0.1:54321" || url === "http://localhost:54321")
+  );
+}
+
 export function getPersonalOwnerSubjectId(): string | null {
   const id = process.env.ACADEMIA_ARCANA_PERSONAL_OWNER_ID?.trim();
   return id && UUID_PATTERN.test(id) ? id.toLowerCase() : null;

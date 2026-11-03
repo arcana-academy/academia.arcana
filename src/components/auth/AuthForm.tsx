@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useId, useState } from "react";
+import { FormEvent, useId, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -32,6 +32,10 @@ const GENERIC_AUTH_ERROR =
 
 const MIN_PASSWORD_LENGTH = 8;
 
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
+
 const PASSWORD_TOO_SHORT_ERROR =
   "A senha precisa ter pelo menos 8 caracteres.";
 
@@ -45,6 +49,12 @@ export function AuthForm({ mode, showSignUpLink = true }: AuthFormProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  // Server markup disables submission; React enables it after hydration.
+  const isHydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
@@ -182,7 +192,7 @@ export function AuthForm({ mode, showSignUpLink = true }: AuthFormProps) {
           <p className="aa-auth-welcome">Informe seu e-mail para receber instruções, se houver uma conta associada.</p>
         ) : null}
 
-      <form className="aa-auth-form" onSubmit={handleSubmit} noValidate>
+      <form className="aa-auth-form" method="post" onSubmit={handleSubmit} noValidate>
         {mode !== "update-password" && (
           <div>
             <label htmlFor={emailId}>Email</label>
@@ -191,6 +201,7 @@ export function AuthForm({ mode, showSignUpLink = true }: AuthFormProps) {
               id={emailId}
               name="email"
               type="email"
+              disabled={!isHydrated}
               autoComplete="email"
               required
               value={email}
@@ -208,6 +219,7 @@ export function AuthForm({ mode, showSignUpLink = true }: AuthFormProps) {
               id={passwordId}
               name="password"
               type={passwordInputType}
+              disabled={!isHydrated}
               autoComplete={
                 mode === "login" ? "current-password" : "new-password"
               }
@@ -236,6 +248,7 @@ export function AuthForm({ mode, showSignUpLink = true }: AuthFormProps) {
               id={confirmPasswordId}
               name="confirm-password"
               type={passwordInputType}
+              disabled={!isHydrated}
               autoComplete="new-password"
               required
               minLength={MIN_PASSWORD_LENGTH}
@@ -252,8 +265,8 @@ export function AuthForm({ mode, showSignUpLink = true }: AuthFormProps) {
           </p>
         )}
 
-        <button className="aa-auth-submit" type="submit" disabled={status === "loading"}>
-          {status === "loading" ? "Processando…" : copy.submit}
+        <button className="aa-auth-submit" type="submit" disabled={!isHydrated || status === "loading"} aria-busy={status === "loading"}>
+          {!isHydrated ? "Preparando formulário…" : status === "loading" ? "Processando…" : copy.submit}
         </button>
       </form>
       {mode === "login" ? (
