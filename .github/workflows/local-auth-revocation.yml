@@ -17,6 +17,7 @@ on:
           - grimorios-persistencia-nova-sessao
           - santuario-estados-progresso
           - workspace-criar-salvar-recuperar
+          - p0-login-gate-hidratacao
 
 permissions:
   contents: read
@@ -521,3 +522,134 @@ jobs:
           fi
           supabase stop --no-backup || true
           docker network rm "$QA_NETWORK" || true
+
+  p0-login-gate-hidratacao:
+    # Apenas workflow_dispatch na branch de composição, sem PR/push/deploy.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.qa_scenario == 'p0-login-gate-hidratacao' &&
+      github.repository == 'arcana-academy/academiaarcana' &&
+      github.actor == 'arcana-academy' &&
+      github.ref == 'refs/heads/work/aa-qa-p0-composition-20261103'
+    name: P0 rotas login cadastro hidratacao - DRAFT NO-GO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+      AA_QA_REMOTE_SYNTHETIC: '1'
+      QA_SCENARIO: p0-login-gate-hidratacao
+      EXPECTED_SHA: ${{ github.sha }}
+      ACADEMIA_ARCANA_PERSONAL_MODE: 'false'
+      ACADEMIA_ARCANA_LOCAL_PREVIEW: 'true'
+      NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321'
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'qa-only-no-secret'
+    steps:
+      - name: Comprovar alvo isolado e proibir credenciais hospedadas
+        run: |
+          set -euo pipefail
+          test "$GITHUB_SHA" = "$EXPECTED_SHA"
+          test "$GITHUB_REF" = 'refs/heads/work/aa-qa-p0-composition-20261103'
+          for name in SUPABASE_ACCESS_TOKEN DATABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY RENDER_API_KEY; do
+            test -z "${!name:-}" || { echo "BLOCKED: variável $name proibida"; exit 1; }
+          done
+          echo 'Escopo de QA P0 sem Supabase hospedado: PASS'
+
+      - name: Harden runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout no SHA acionado
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validar descendencia P0 e fonte do roteiro
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git merge-base --is-ancestor 38e84bc50bad23b88e0e69e44d750cceec301496 "$GITHUB_SHA"
+          test "$(git diff --name-only 38e84bc50bad23b88e0e69e44d750cceec301496 "$GITHUB_SHA" | wc -l)" -eq 2
+          test -f scripts/qa/remote-synthetic-p0-login-hydration.mjs
+          test -z "$(git status --porcelain)"
+          node --check scripts/qa/remote-synthetic-p0-login-hydration.mjs
+
+      - name: Node 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: npm 11 fixado
+        run: |
+          corepack enable npm
+          corepack prepare npm@11.19.1 --activate
+          test "$(npm --version)" = '11.19.1'
+
+      - name: Dependencias sem scripts de instalacao
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Vitest direcionado aos contratos P0
+        run: |
+          ./node_modules/.bin/vitest run \
+            src/app/page.local-preview.test.tsx \
+            src/app/login/page.test.tsx \
+            src/app/cadastro/page.test.tsx \
+            src/components/auth/AuthForm.test.tsx \
+            src/components/generated/AcademiaArcanaLanding.generated.test.tsx \
+            src/lib/security/personal-access.test.ts \
+            src/proxy.test.ts
+
+      - name: ESLint direcionado P0
+        run: |
+          ./node_modules/.bin/eslint \
+            src/app/page.tsx src/app/page.local-preview.test.tsx \
+            src/app/login/page.tsx src/app/login/page.test.tsx \
+            src/app/cadastro/page.tsx src/app/cadastro/page.test.tsx \
+            src/components/auth/AuthForm.tsx src/components/auth/AuthForm.test.tsx \
+            src/components/generated/AcademiaArcanaLanding.generated.tsx \
+            src/components/generated/AcademiaArcanaLanding.generated.test.tsx \
+            src/lib/security/personal-access.ts src/lib/security/personal-access.test.ts \
+            src/proxy.ts src/proxy.test.ts
+
+      - name: Chromium efemero
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Iniciar Next.js anonimo em loopback sem banco
+        run: |
+          set -euo pipefail
+          test "$NEXT_PUBLIC_SUPABASE_URL" = 'http://127.0.0.1:54321'
+          npm run dev -- --hostname 127.0.0.1 --port 3000 > "$RUNNER_TEMP/aa-next-p0.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/aa-next-p0.pid"
+          ready=0
+          for i in $(seq 1 90); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:3000/login; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/aa-next-p0.pid")" 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          if test "$ready" -ne 1; then
+            echo 'BLOCKED: Next.js P0 local indisponivel'
+            exit 1
+          fi
+          echo 'Next.js P0 em loopback: PASS'
+
+      - name: Chromium verifica GET redirecionamentos POST e hidratacao
+        run: node scripts/qa/remote-synthetic-p0-login-hydration.mjs
+
+      - name: Encerrar apenas Next.js efemero
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/aa-next-p0.pid"; then
+            kill "$(cat "$RUNNER_TEMP/aa-next-p0.pid")" 2>/dev/null || true
+          fi
