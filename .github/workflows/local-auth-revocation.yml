@@ -56,7 +56,6 @@ jobs:
       AA_P0_CODE_SHA: '2aa150efa105388a0a3fdb344a72ca5f6e00e1f0'
       AA_EXPECTED_ORCHESTRATION_SHA: ${{ inputs.orchestration_sha }}
       AA_CODE_ROOT: ${{ github.workspace }}/source
-      AA_QA_STATE_FILE: ${{ runner.temp }}/aa-p0-auth-state.json
       QA_NETWORK: aa-qa-p0-${{ github.run_id }}-${{ github.run_attempt }}
       ACADEMIA_ARCANA_PERSONAL_MODE: 'true'
       ACADEMIA_ARCANA_LOCAL_PREVIEW: 'false'
@@ -95,6 +94,7 @@ jobs:
           test "$GITHUB_SHA" = "$AA_EXPECTED_ORCHESTRATION_SHA"
           test "$AA_P0_CODE_SHA" = '2aa150efa105388a0a3fdb344a72ca5f6e00e1f0'
           test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          printf 'AA_QA_STATE_FILE=%s/aa-p0-auth-state.json\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           for name in SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY \
             SUPABASE_SECRET_KEY DATABASE_URL DIRECT_URL RENDER_API_KEY \
             RENDER_DEPLOY_HOOK_URL VERCEL_TOKEN AWS_ACCESS_KEY_ID; do
