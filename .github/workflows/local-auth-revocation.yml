@@ -17,6 +17,11 @@ on:
           - grimorios-persistencia-nova-sessao
           - santuario-estados-progresso
           - workspace-criar-salvar-recuperar
+          - p0-auth-ui-rls-integrado
+      orchestration_sha:
+        description: SHA completo O, obrigatório só no cenário P0 integrado
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -26,6 +31,264 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  p0-auth-ui-rls-integrado:
+    # APENAS PROPOSTA V3; input SHA opcional nos cenários antigos, obrigatório neste job.
+    # NÃO ativar sem autorização separada da orquestração O e inventário de triggers.
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.qa_scenario == 'p0-auth-ui-rls-integrado' &&
+      github.repository == 'arcana-academy/academiaarcana' &&
+      github.actor == 'arcana-academy' &&
+      github.ref == 'refs/heads/work/aa-qa-remoto-isolado-20261103'
+    name: P0 UI Auth/RLS integrado sintético - DRAFT NO-GO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+      AA_QA_REMOTE_SYNTHETIC: '1'
+      QA_SCENARIO: p0-auth-ui-rls-integrado
+      AA_P0_CODE_SHA: '2aa150efa105388a0a3fdb344a72ca5f6e00e1f0'
+      AA_EXPECTED_ORCHESTRATION_SHA: ${{ inputs.orchestration_sha }}
+      AA_CODE_ROOT: ${{ github.workspace }}/source
+      AA_QA_STATE_FILE: ${{ runner.temp }}/aa-p0-auth-state.json
+      QA_NETWORK: aa-qa-p0-${{ github.run_id }}-${{ github.run_attempt }}
+      ACADEMIA_ARCANA_PERSONAL_MODE: 'true'
+      ACADEMIA_ARCANA_LOCAL_PREVIEW: 'false'
+    steps:
+      - name: Egress bloqueado, allowlist provisória estrita — BLOCKED até preflight runtime
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: block
+          disable-telemetry: true
+          allowed-endpoints: |
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            objects.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            registry.npmjs.org:443
+            archive.ubuntu.com:80
+            security.ubuntu.com:80
+            cdn.playwright.dev:443
+            auth.docker.io:443
+            registry-1.docker.io:443
+            production.cloudflare.docker.com:443
+
+      - name: Preflight de alvo, custo e ausência de ambiente hospedado
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'arcana-academy/academiaarcana'
+          test "$GITHUB_REF" = 'refs/heads/work/aa-qa-remoto-isolado-20261103'
+          test "$GITHUB_ACTOR" = 'arcana-academy'
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          # Input preservado como opcional para os 3 cenários manuais antigos;
+          # neste cenário novo é obrigatório e deve ser um SHA literal completo.
+          [[ "${AA_EXPECTED_ORCHESTRATION_SHA:-}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo 'BLOCKED: input de SHA O ausente ou inválido'; exit 78;
+          }
+          test "$GITHUB_SHA" = "$AA_EXPECTED_ORCHESTRATION_SHA"
+          test "$AA_P0_CODE_SHA" = '2aa150efa105388a0a3fdb344a72ca5f6e00e1f0'
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY \
+            SUPABASE_SECRET_KEY DATABASE_URL DIRECT_URL RENDER_API_KEY \
+            RENDER_DEPLOY_HOOK_URL VERCEL_TOKEN AWS_ACCESS_KEY_ID; do
+            test -z "${!name:-}" || { echo 'BLOCKED: variável hospedada proibida'; exit 78; }
+          done
+          test "$(df -Pk "$GITHUB_WORKSPACE" | awk 'NR==2 {print $4}')" -ge 9000000 || {
+            echo 'BLOCKED: disco pré-instalação insuficiente'; exit 78;
+          }
+          test "$(free -m | awk '/^Mem:/ {print $7}')" -ge 6000 || {
+            echo 'BLOCKED: RAM pré-instalação insuficiente'; exit 78;
+          }
+          echo 'PASS: preflight de identidade/recursos; egress e quota permanecem sujeitos a validação'
+
+      - name: Checkout da orquestração (SHA O)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: orchestration
+          persist-credentials: false
+
+      - name: Checkout do código P0 imutável (SHA C)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 2aa150efa105388a0a3fdb344a72ca5f6e00e1f0
+          path: source
+          persist-credentials: false
+
+      - name: Manifestar SHAs separados e impedir desvio da branch P0
+        run: |
+          set -euo pipefail
+          test "$(git -C orchestration rev-parse HEAD)" = "$AA_EXPECTED_ORCHESTRATION_SHA"
+          test "$(git -C source rev-parse HEAD)" = "$AA_P0_CODE_SHA"
+          actual="$(git -C source ls-remote origin refs/heads/work/aa-qa-p0-composition-20261103 | cut -f1)"
+          test "$actual" = "$AA_P0_CODE_SHA" || { echo 'BLOCKED: branch P0 mudou'; exit 78; }
+          test -f orchestration/scripts/qa/remote-synthetic-p0-authenticated.mjs
+          test "$(sha256sum orchestration/scripts/qa/remote-synthetic-p0-authenticated.mjs | cut -d' ' -f1)" = 'a0819715298a2cb75b50a94f66109d98245af0f8fd18bf82de5229d553802c82' || {
+            echo 'BLOCKED: script V3 divergente do artefato revisado'; exit 78;
+          }
+          test -z "$(git -C source status --porcelain)"
+          echo "MANIFEST code_sha=$AA_P0_CODE_SHA orchestration_sha=$GITHUB_SHA event=workflow_dispatch"
+
+      - name: Node 24 e npm 11 do projeto
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Fixar npm do P0 e instalar dependências somente no runner efêmero
+        working-directory: source
+        run: |
+          set -euo pipefail
+          test "$(node --version | cut -d. -f1)" = 'v24' || {
+            echo 'BLOCKED: Node diferente do major 24'; exit 78;
+          }
+          # Corepack/npm não é presumido presente em toda imagem Node 24.
+          npm install --global npm@11.19.1 --ignore-scripts --no-audit --no-fund
+          test "$(npm --version)" = 11.19.1
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Supabase CLI efêmero já adotado no projeto
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.118.0
+
+      - name: Rede Docker sem saída externa e com portas loopback
+        run: |
+          set -euo pipefail
+          docker network create --driver bridge --internal \
+            -o com.docker.network.bridge.host_binding_ipv4=127.0.0.1 "$QA_NETWORK" >/dev/null
+          test "$(docker network inspect --format '{{.Internal}}' "$QA_NETWORK")" = true
+          test "$(docker network inspect --format '{{.EnableIPv6}}' "$QA_NETWORK")" = false || {
+            echo 'BLOCKED: IPv6 de contêiner não foi isolado'; exit 78;
+          }
+          test "$(docker network inspect --format '{{index .Options "com.docker.network.bridge.host_binding_ipv4"}}' "$QA_NETWORK")" = 127.0.0.1
+          printf '%s\n' created > "$RUNNER_TEMP/aa-qa-network-created"
+
+      - name: Iniciar Auth/Postgres/Storage 100% locais, sem emitir chaves em logs
+        working-directory: source
+        run: |
+          set -euo pipefail
+          supabase start --network-id "$QA_NETWORK" \
+            > "$RUNNER_TEMP/aa-supabase-start.log" 2>&1 || {
+              echo 'BLOCKED: Supabase local não iniciou; não imprimir log bruto'; exit 78;
+            }
+          printf '%s\n' started > "$RUNNER_TEMP/aa-qa-supabase-started"
+
+      - name: Confirmar todos os bindings do Supabase antes de criar contas
+        run: |
+          set -euo pipefail
+          containers="$(docker ps --filter "network=$QA_NETWORK" --format '{{.Names}}')"
+          test -n "$containers" || { echo 'BLOCKED: sem contêineres'; exit 78; }
+          for required in supabase_kong_ supabase_db_ supabase_storage_; do
+            printf '%s\n' "$containers" | grep -q "^$required" || {
+              echo 'BLOCKED: serviço Supabase ausente'; exit 78;
+            }
+          done
+          while IFS= read -r container; do
+            case "$container" in supabase_*) ;; *) echo 'BLOCKED: contêiner inesperado'; exit 78 ;; esac
+            n="$(docker inspect --format '{{len .NetworkSettings.Networks}}' "$container")"
+            test "$n" = 1 || { echo 'BLOCKED: contêiner com rede adicional'; exit 78; }
+            docker inspect --format '{{range $port, $items := .NetworkSettings.Ports}}{{range $items}}{{println .HostIp}}{{end}}{{end}}' "$container" |
+              while IFS= read -r ip; do
+                test -z "$ip" || test "$ip" = 127.0.0.1 || test "$ip" = ::1 || {
+                  echo 'BLOCKED: porta pública'; exit 78;
+                }
+              done
+          done <<< "$containers"
+          echo 'PASS: contêineres Supabase isolados em rede interna'
+
+      - name: Exportar somente URL e ANON locais, sem exibir a chave
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          import { appendFileSync } from 'node:fs';
+          const output = execFileSync('supabase', ['status','-o','env'], { encoding:'utf8', timeout:20000 });
+          const vars = Object.fromEntries(output.split(/\r?\n/).flatMap(line => {
+            const m=line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
+            return m ? [[m[1],m[2].replace(/^["']|["']$/g,'')]] : [];
+          }));
+          assert.equal(new URL(vars.API_URL).origin, 'http://127.0.0.1:54321');
+          assert.ok(vars.ANON_KEY && !/[\r\n]/.test(vars.ANON_KEY));
+          appendFileSync(process.env.GITHUB_ENV,
+            'NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321\n' +
+            'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=' + vars.ANON_KEY + '\n');
+          console.log('PASS: URL e chave pública da instância sintética sem vazamento');
+          NODE
+
+      - name: Preparar navegador Chromium efêmero
+        working-directory: source
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Preflight pós-download, antes do teste autenticado
+        run: |
+          set -euo pipefail
+          test "$(df -Pk "$GITHUB_WORKSPACE" | awk 'NR==2 {print $4}')" -ge 2000000 || {
+            echo 'BLOCKED: disco insuficiente para a execução'; exit 78;
+          }
+          test "$(free -m | awk '/^Mem:/ {print $7}')" -ge 2500 || {
+            echo 'BLOCKED: RAM insuficiente para Next.js/Chromium'; exit 78;
+          }
+          echo 'PASS: recursos mínimos para a execução sintética'
+
+      - name: Semear somente contas A/B no Auth local
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node ../orchestration/scripts/qa/remote-synthetic-p0-authenticated.mjs seed
+          test "$(stat -c %a "$AA_QA_STATE_FILE")" = 600
+
+      - name: Iniciar Next.js somente loopback com gate da proprietária A
+        working-directory: source
+        run: |
+          set -euo pipefail
+          owner="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.env.AA_QA_STATE_FILE)).a.id)')"
+          [[ "$owner" =~ ^[0-9a-f-]{36}$ ]]
+          printf 'ACADEMIA_ARCANA_PERSONAL_OWNER_ID=%s\n' "$owner" >> "$GITHUB_ENV"
+          export ACADEMIA_ARCANA_PERSONAL_OWNER_ID="$owner"
+          npm run dev -- --hostname 127.0.0.1 --port 3000 \
+            > "$RUNNER_TEMP/aa-next-auth.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/aa-next-auth.pid"
+          ready=0
+          for i in $(seq 1 90); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:3000/login; then
+              ready=1; break
+            fi
+            kill -0 "$(cat "$RUNNER_TEMP/aa-next-auth.pid")" 2>/dev/null || break
+            sleep 2
+          done
+          test "$ready" -eq 1 || { echo 'BLOCKED: Next.js sintético não ficou saudável'; exit 78; }
+          echo 'PASS: Next.js com owner gate e rede loopback'
+
+      - name: Testar matrizes HTTP P0, UI autenticada, RLS e Storage (somente em execução futura autorizada)
+        working-directory: source
+        run: node ../orchestration/scripts/qa/remote-synthetic-p0-authenticated.mjs verify
+
+      - name: Limpeza somente de recursos descartáveis desta execução
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/aa-next-auth.pid"; then
+            kill "$(cat "$RUNNER_TEMP/aa-next-auth.pid")" 2>/dev/null || true
+          fi
+          # Limpar só recursos criados por ESTE job, marcados no runner efêmero.
+          if test -f "$RUNNER_TEMP/aa-qa-supabase-started" && test -d source; then
+            (cd source && supabase stop --no-backup >/dev/null 2>&1) || true
+          fi
+          if test -f "$RUNNER_TEMP/aa-qa-network-created"; then
+            docker network rm "$QA_NETWORK" >/dev/null 2>&1 || true
+          fi
+          # Falha parcial de start pode deixar containers até descarte do runner;
+          # não usar docker prune, git clean, reset nem limpeza de recursos alheios.
+          # Sem docker prune/git clean/reset; sem publicar logs/screenshot/tokens.
+
   local-auth-revocation:
     if: github.event_name != 'workflow_dispatch'
     name: Isolated two-account Auth and RLS exercise
