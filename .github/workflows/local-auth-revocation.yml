@@ -219,7 +219,7 @@ jobs:
           assert.equal(new URL(vars.API_URL).origin, 'http://127.0.0.1:54321');
           assert.ok(vars.ANON_KEY && !/[\r\n]/.test(vars.ANON_KEY));
           appendFileSync(process.env.GITHUB_ENV,
-            'NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321\n' +
+            'NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321/\n' +
             'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=' + vars.ANON_KEY + '\n');
           console.log('PASS: URL e chave pública da instância sintética sem vazamento');
           NODE
