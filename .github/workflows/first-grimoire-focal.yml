@@ -113,7 +113,7 @@ jobs:
           ./node_modules/.bin/vitest run \
             src/app/experiencia/first-grimoire-model.test.ts \
             src/app/experiencia/FirstGrimoireJourney.test.tsx \
-            --maxWorkers=1 --minWorkers=1 --no-file-parallelism --reporter=verbose
+            --maxWorkers=1 --no-file-parallelism --reporter=verbose
 
 # Não inclui Auth, Supabase, Playwright, build, deploy ou gravações produtivas.
 # Testes unitários/componentes NÃO homologam estudantes, RLS ou QA assistivo.
