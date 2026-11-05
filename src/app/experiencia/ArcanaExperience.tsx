@@ -13,6 +13,7 @@ import {
   toggleDemoMission,
   type DemoMission,
 } from "./demo-model";
+import { FirstGrimoireJourney } from "./FirstGrimoireJourney";
 import styles from "./ArcanaExperience.module.css";
 
 const FOCUS_DURATION = 5 * 60;
@@ -68,6 +69,8 @@ export function ArcanaExperience() {
   const [seconds, setSeconds] = useState(FOCUS_DURATION);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState("");
+  const [firstGrimoireFocusSignal, setFirstGrimoireFocusSignal] = useState(0);
+  const [firstGrimoireResetSignal, setFirstGrimoireResetSignal] = useState(0);
 
   useEffect(() => {
     if (!running || seconds === 0) return;
@@ -99,6 +102,8 @@ export function ArcanaExperience() {
   function recordFocus() {
     if (seconds === FOCUS_DURATION) return;
     writeDemoSnapshot(missions, focusSessions + 1);
+    // A new session registered in the existing timer signals the guided journey.
+    setFirstGrimoireFocusSignal((signal) => signal + 1);
     setRunning(false);
     setSeconds(FOCUS_DURATION);
     setNotice("Sessão registrada. Cada passo conta, mesmo que tenha sido breve.");
@@ -106,6 +111,7 @@ export function ArcanaExperience() {
 
   function resetDemo() {
     writeDemoSnapshot(INITIAL_MISSIONS.map((mission) => ({ ...mission })), 0);
+    setFirstGrimoireResetSignal((signal) => signal + 1);
     setTitle("");
     setSeconds(FOCUS_DURATION);
     setRunning(false);
@@ -133,6 +139,12 @@ export function ArcanaExperience() {
           <div className={styles.stat}><span>Missões concluídas</span><strong>{progress.completed} / {progress.total}</strong><small>Sem metas punitivas</small></div>
           <div className={styles.stat}><span>Sessões de foco</span><strong>{focusSessions}</strong><small>No seu próprio ritmo</small></div>
         </div>
+
+        <FirstGrimoireJourney
+          focusSignal={firstGrimoireFocusSignal}
+          resetSignal={firstGrimoireResetSignal}
+          demoXp={progress.xp}
+        />
 
         <div className={styles.columns}>
           <section className={styles.panel} aria-labelledby="demo-missions-title">

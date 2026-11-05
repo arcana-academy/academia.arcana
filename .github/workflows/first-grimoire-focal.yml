@@ -1,0 +1,119 @@
+# Academia Arcana — Primeiro Grimório — validação focal sintética.
+# NOVO WORKFLOW LOCAL: não executar, enviar ou abrir PR sem autorização específica.
+# Um futuro push na branch abaixo com arquivos dos paths monitorados aciona
+# AUTOMATICAMENTE este job. Nenhuma publicação, banco ou segredo é necessário.
+# Sem workflow_dispatch: no GitHub, despachos manuais requerem registro na main.
+name: Primeiro Grimorio — Vitest focal isolado
+
+on:
+  push:
+    branches:
+      - work/aa-primeiro-grimorio-mvp-20261105
+    paths:
+      - .github/workflows/first-grimoire-focal.yml
+      - src/app/experiencia/**
+      - src/test/setup.ts
+      - vitest.config.ts
+      - package.json
+      - package-lock.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: primeiro-grimorio-focal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vitest-focal:
+    name: 21 testes — modelo e interface locais
+    if: >-
+      github.repository == 'arcana-academy/academiaarcana' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/work/aa-primeiro-grimorio-mvp-20261105'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+      npm_config_audit: 'false'
+      npm_config_fund: 'false'
+
+    steps:
+      - name: Checkout da revisão exata do push (sem credenciais persistentes)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Guardas de identidade e evidências do executor
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'arcana-academy/academiaarcana'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "$GITHUB_REF" = 'refs/heads/work/aa-primeiro-grimorio-mvp-20261105'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "Repositorio: $GITHUB_REPOSITORY"
+          echo "Branch: $GITHUB_REF"
+          echo "Commit: $GITHUB_SHA"
+          echo "Run ID: $GITHUB_RUN_ID"
+          echo 'SHA-256 dos oito arquivos da implementacao e do package-lock.json:'
+          for file in \
+            .github/workflows/first-grimoire-focal.yml \
+            src/app/experiencia/ArcanaExperience.tsx \
+            src/app/experiencia/FirstGrimoireJourney.module.css \
+            src/app/experiencia/FirstGrimoireJourney.test.tsx \
+            src/app/experiencia/FirstGrimoireJourney.tsx \
+            src/app/experiencia/first-grimoire-content.ts \
+            src/app/experiencia/first-grimoire-model.test.ts \
+            src/app/experiencia/first-grimoire-model.ts \
+            package-lock.json; do
+            test -f "$file"
+            sha256sum "$file"
+          done
+
+      - name: Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: npm 11.19.1 conforme package.json
+        shell: bash
+        run: |
+          corepack enable npm
+          corepack prepare npm@11.19.1 --activate
+          node --version
+          npm --version
+
+      - name: Verificar a fronteira de supply chain antes da instalacao
+        shell: bash
+        run: node scripts/verify-supply-chain-workflows.cjs
+
+      - name: Verificar a allowlist de lifecycle scripts antes da instalacao
+        shell: bash
+        run: node scripts/verify-dependency-lifecycle-scripts.cjs
+
+      - name: Dependências do lockfile, sem lifecycle scripts
+        shell: bash
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      # Mesmo rebuild focal já presente no Quality Gate canônico.
+      # Não liberar scripts gerais de instalação de dependências.
+      - name: Recompilar somente dependência nativa revisada
+        shell: bash
+        run: npm rebuild unrs-resolver --ignore-scripts=false --no-audit --no-fund
+
+      - name: Executar somente os dois arquivos focais (21 casos previstos)
+        shell: bash
+        run: |
+          ./node_modules/.bin/vitest run \
+            src/app/experiencia/first-grimoire-model.test.ts \
+            src/app/experiencia/FirstGrimoireJourney.test.tsx \
+            --maxWorkers=1 --minWorkers=1 --no-file-parallelism --reporter=verbose
+
+# Não inclui Auth, Supabase, Playwright, build, deploy ou gravações produtivas.
+# Testes unitários/componentes NÃO homologam estudantes, RLS ou QA assistivo.
