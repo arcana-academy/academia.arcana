@@ -29,6 +29,9 @@ let inMemoryState: string | null = null;
 let readBlocked = false;
 
 function getBrowserState(): string | null {
+  // Failed writes leave localStorage readable but stale; prefer the in-memory fallback.
+  if (inMemoryState !== null) return inMemoryState;
+
   try {
     readBlocked = false;
     return window.localStorage.getItem(FIRST_GRIMOIRE_STORAGE_KEY);
@@ -82,6 +85,7 @@ export function FirstGrimoireJourney({
     try {
       window.localStorage.setItem(FIRST_GRIMOIRE_STORAGE_KEY, data);
       inMemoryState = null;
+      setStorageWarning(false);
     } catch {
       inMemoryState = data;
       setStorageWarning(true);

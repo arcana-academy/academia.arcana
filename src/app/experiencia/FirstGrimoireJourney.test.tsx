@@ -53,6 +53,12 @@ function readStoredJourney() {
   return readFirstGrimoireSnapshot(window.localStorage.getItem(FIRST_GRIMOIRE_STORAGE_KEY));
 }
 
+function recoverStorageAfterFailure(view: ReturnType<typeof render>) {
+  vi.restoreAllMocks();
+  // A successful reset write also clears the module-level memory fallback between tests.
+  view.rerender(<FirstGrimoireJourney focusSignal={0} resetSignal={1} demoXp={0} />);
+}
+
 describe("Primeiro Grimório — jornada demonstrativa (V1)", () => {
   it("informa caráter local, apresenta etapas e mantém começo protegido (CA-01/03/15)", () => {
     render(<FirstGrimoireJourney focusSignal={0} resetSignal={0} demoXp={0} />);
@@ -152,6 +158,32 @@ describe("Primeiro Grimório — jornada demonstrativa (V1)", () => {
     expect(readStoredJourney().started).toBe(true);
   });
 
+  it("mantém progresso em memória quando a escrita falha mas a leitura funciona (CA-13)", () => {
+    const storedBeforeFailure = JSON.stringify(newFirstGrimoireSnapshot());
+    window.localStorage.setItem(FIRST_GRIMOIRE_STORAGE_KEY, storedBeforeFailure);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Gravação indisponível");
+    });
+    const view = render(<FirstGrimoireJourney focusSignal={0} resetSignal={0} demoXp={0} />);
+    try {
+      fireEvent.click(screen.getByRole("button", { name: /Iniciar o Primeiro Grimório/ }));
+      expect(screen.getByText("Página 1 de " + READING_PAGES.length)).toBeInTheDocument();
+      expect(screen.getByText(/O navegador bloqueou o armazenamento local/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Próxima página/ }));
+      expect(screen.getByText("Página 2 de " + READING_PAGES.length)).toBeInTheDocument();
+      expect(window.localStorage.getItem(FIRST_GRIMOIRE_STORAGE_KEY)).toBe(storedBeforeFailure);
+
+      vi.restoreAllMocks();
+      fireEvent.click(screen.getByRole("button", { name: /Próxima página/ }));
+      expect(screen.getByText("Página " + READING_PAGES.length + " de " + READING_PAGES.length)).toBeInTheDocument();
+      expect(readStoredJourney().started).toBe(true);
+      expect(readStoredJourney().readingLastIndex).toBe(READING_PAGES.length - 1);
+      expect(screen.queryByText(/O navegador bloqueou o armazenamento local/)).not.toBeInTheDocument();
+    } finally {
+      recoverStorageAfterFailure(view);
+    }
+  });
+
   it("avisa quando leitura e escrita no armazenamento estão bloqueadas (CA-13)", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("Armazenamento indisponível");
@@ -159,10 +191,14 @@ describe("Primeiro Grimório — jornada demonstrativa (V1)", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("Armazenamento indisponível");
     });
-    render(<FirstGrimoireJourney focusSignal={0} resetSignal={0} demoXp={0} />);
-    expect(screen.getByText(/O navegador bloqueou o armazenamento local/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Iniciar o Primeiro Grimório/ }));
-    expect(screen.getByText("Página 1 de " + READING_PAGES.length)).toBeInTheDocument();
+    const view = render(<FirstGrimoireJourney focusSignal={0} resetSignal={0} demoXp={0} />);
+    try {
+      expect(screen.getByText(/O navegador bloqueou o armazenamento local/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Iniciar o Primeiro Grimório/ }));
+      expect(screen.getByText("Página 1 de " + READING_PAGES.length)).toBeInTheDocument();
+    } finally {
+      recoverStorageAfterFailure(view);
+    }
   });
 
   it("integra a sessão curta do temporizador existente, sem exigir cinco minutos (CA-02/09/10)", () => {
