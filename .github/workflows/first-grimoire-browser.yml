@@ -1,0 +1,121 @@
+# Academia Arcana — QA de navegador focal do MVP pessoal.
+# A criacao local deste arquivo nao executa workflow: somente futuro push autorizado.
+# Sem credenciais reais, banco produtivo, deploy, PR ou publicacao estudantil.
+name: Primeiro Grimorio — Playwright focal pessoal
+
+on:
+  push:
+    branches:
+      - work/aa-primeiro-grimorio-mvp-20261105
+    paths:
+      - .github/workflows/first-grimoire-browser.yml
+      - tests/e2e/first-grimoire-personal.spec.ts
+      - src/app/experiencia/**
+      - src/app/layout.tsx
+      - src/application/providers/ApplicationProviders.tsx
+      - playwright.config.ts
+      - package.json
+      - package-lock.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: primeiro-grimorio-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-focal:
+    name: Chromium desktop, mobile e teclado — demonstracao sintetica
+    if: >-
+      github.repository == 'arcana-academy/academiaarcana' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/work/aa-primeiro-grimorio-mvp-20261105'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    env:
+      CI: 'true'
+      # Habilita apenas o arquivo focal; o Quality Gate geral nao define esta chave.
+      AA_FIRST_GRIMOIRE_BROWSER_FOCAL: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+      npm_config_audit: 'false'
+      npm_config_fund: 'false'
+      # Valores publicos sintéticos, com mesmo formato da Quality Gate.
+      NEXT_PUBLIC_SUPABASE_URL: https://abcdefghijklmnopqrst.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_AAAAAAAAAA_BBBBBBBBBBB_CCCCCCCC
+
+    steps:
+      - name: Checkout SHA exato sem credenciais persistentes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Guardas do alvo e evidencias
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'arcana-academy/academiaarcana'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "$GITHUB_REF" = 'refs/heads/work/aa-primeiro-grimorio-mvp-20261105'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -f tests/e2e/first-grimoire-personal.spec.ts
+          test -f src/app/experiencia/page.tsx
+          echo "Repositorio: $GITHUB_REPOSITORY"
+          echo "Branch: $GITHUB_REF"
+          echo "Commit: $GITHUB_SHA"
+          echo "Run ID: $GITHUB_RUN_ID"
+          sha256sum tests/e2e/first-grimoire-personal.spec.ts .github/workflows/first-grimoire-browser.yml
+
+      - name: Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: npm 11.19.1 conforme package.json
+        shell: bash
+        run: |
+          corepack enable npm
+          corepack prepare npm@11.19.1 --activate
+          node --version
+          npm --version
+
+      - name: Checar fronteira de supply chain e lifecycle scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-supply-chain-workflows.cjs
+          node scripts/verify-dependency-lifecycle-scripts.cjs
+          node scripts/security/assert-build-secret-isolation-536.cjs
+
+      - name: Dependencias sem lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Recompilar somente dependencia nativa revisada
+        run: npm rebuild unrs-resolver --ignore-scripts=false --no-audit --no-fund
+
+      - name: Build local sintetico sem credenciais de runtime
+        run: npm run build
+
+      - name: Preparar Chromium no runner descartavel
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Executar somente QA pessoal desktop, mobile e teclado
+        run: |
+          ./node_modules/.bin/playwright test tests/e2e/first-grimoire-personal.spec.ts \
+            --project=chromium --workers=1 --retries=0 --reporter=line
+
+      - name: Guardar capturas e traces sinteticos somente se falhar
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: primeiro-grimorio-browser-failure-${{ github.sha }}
+          path: test-results/**
+          if-no-files-found: ignore
+          retention-days: 3
+
+# Somente QA sintetico do MVP pessoal. Nao substitui QA assistivo humano.
+# O resultado nao autoriza merge, deploy, migracao nem acesso de estudantes.
