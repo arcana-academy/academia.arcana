@@ -38,13 +38,17 @@ function validChoice(value: unknown): value is Choice {
   return value === null || value === 0 || value === 1 || value === 2;
 }
 
+export function allQuestionsAnswered(answers: JourneyAnswers): boolean {
+  return answers.length === QUESTIONS.length && answers.every((choice) => choice !== null);
+}
+
 export function allAnswersCorrect(answers: JourneyAnswers): boolean {
   return QUESTIONS.every((question, index) => answers[index] === question.correct);
 }
 
 export function getUnlockedStep(snapshot: FirstGrimoireSnapshot): 0 | 1 | 2 | 3 | 4 {
   if (!snapshot.started || !snapshot.readingCompleted) return 0;
-  if (!allAnswersCorrect(snapshot.answers)) return 1;
+  if (!allQuestionsAnswered(snapshot.answers)) return 1;
   if (!snapshot.focusCompleted) return 2;
   if (!snapshot.reflectionSaved || !snapshot.reflection.trim()) return 3;
   return 4;
@@ -82,7 +86,7 @@ export function readFirstGrimoireSnapshot(raw: string | null): FirstGrimoireSnap
     const readingLastIndex = obj.readingLastIndex as number;
     const readingCompleted = started && obj.readingCompleted === true &&
       readingLastIndex === READING_PAGES.length - 1;
-    const focusCompleted = readingCompleted && allAnswersCorrect(answers) && obj.focusCompleted === true;
+    const focusCompleted = readingCompleted && allQuestionsAnswered(answers) && obj.focusCompleted === true;
     const reflection = (obj.reflection as string).slice(0, MAX_REFLECTION_CHARS);
     const reflectionSaved = focusCompleted && reflection.trim().length > 0 && obj.reflectionSaved === true;
     const awardGranted = reflectionSaved && obj.awardGranted === true;

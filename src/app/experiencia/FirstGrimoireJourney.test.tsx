@@ -110,6 +110,27 @@ describe("Primeiro Grimório — jornada demonstrativa (V1)", () => {
     expect(readStoredJourney().awardGranted).toBe(false);
   });
 
+  it("libera foco com três respostas mesmo quando uma está incorreta (CA-06–08/10/14)", () => {
+    const view = render(<FirstGrimoireJourney focusSignal={0} resetSignal={0} demoXp={0} />);
+    advanceToQuestions();
+    const wrongChoice = ((QUESTIONS[0].correct + 1) % 3) as 0 | 1 | 2;
+    sendAnswer(0, wrongChoice);
+    for (let index = 1; index < QUESTIONS.length; index += 1) {
+      fireEvent.click(screen.getByRole("button", { name: /Próxima pergunta/ }));
+      sendAnswer(index, QUESTIONS[index].correct);
+    }
+    expect(screen.getByText(/Você já pode seguir para o foco/)).toBeInTheDocument();
+    const proceed = screen.getByRole("button", { name: /Continuar para foco/ });
+    expect(proceed).toBeEnabled();
+    fireEvent.click(proceed);
+    expect(screen.getByRole("heading", { name: "Um momento de concentração" })).toBeInTheDocument();
+
+    view.rerender(<FirstGrimoireJourney focusSignal={1} resetSignal={0} demoXp={0} />);
+    expect(readStoredJourney().answers[0]).toBe(wrongChoice);
+    expect(readStoredJourney().focusCompleted).toBe(true);
+    expect(screen.getByRole("textbox", { name: "O que levo desta leitura?" })).toBeInTheDocument();
+  });
+
   it("respeita sinal de foco, salva síntese, conquista e reset local (CA-10–17)", () => {
     const originalDemo = JSON.stringify({ missions: [], focusSessions: 2 });
     window.localStorage.setItem(DEMO_STORAGE_KEY, originalDemo);

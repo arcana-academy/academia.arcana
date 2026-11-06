@@ -6,6 +6,7 @@ import {
   FIRST_GRIMOIRE_STORAGE_KEY,
   MAX_REFLECTION_CHARS,
   allAnswersCorrect,
+  allQuestionsAnswered,
   answerFirstGrimoireQuestion,
   awardFirstJourney,
   beginFirstGrimoire,
@@ -22,10 +23,10 @@ import {
 } from "./first-grimoire-model";
 
 /**
- * Testes focais preparados, NÃO executados.
+ * Testes focais do modelo; nova execução depende de autorização separada.
  * Referência: especificação funcional V1 de 05/11/2026, CA-02, CA-05–08 e CA-11–17.
- * Conteúdo editorial ainda provisório; três acertos obrigatórios são comportamento
- * atual mais restritivo, não uma nova decisão humana de produto.
+ * Conteúdo editorial ainda provisório; três respostas enviadas liberam o foco,
+ * mesmo com erros, preservando feedback e revisão voluntária.
  */
 function finishedReading(): FirstGrimoireSnapshot {
   let state = beginFirstGrimoire(newFirstGrimoireSnapshot());
@@ -95,7 +96,7 @@ describe("Primeiro Grimório — modelo local isolado (V1)", () => {
     expect(completeReading(finished)).toBe(finished);
   });
 
-  it("mantém respostas incompletas e incorretas sem liberar foco (CA-06–08)", () => {
+  it("mantém respostas incompletas sem liberar foco e permite correção (CA-06–08)", () => {
     const reading = finishedReading();
     expect(allAnswersCorrect(reading.answers)).toBe(false);
     expect(markFirstGrimoireFocus(reading)).toBe(reading);
@@ -111,6 +112,35 @@ describe("Primeiro Grimório — modelo local isolado (V1)", () => {
     expect(allAnswersCorrect(corrected.answers)).toBe(true);
     expect(getUnlockedStep(corrected)).toBe(2);
     expect(isJourneyComplete(corrected)).toBe(false);
+  });
+
+  it("libera foco com três respostas enviadas mesmo com erro, inclusive após recarga (CA-06–08/10/14)", () => {
+    let answered = finishedReading();
+    const wrongChoice = ((QUESTIONS[0].correct + 1) % 3) as 0 | 1 | 2;
+    answered = answerFirstGrimoireQuestion(answered, 0, wrongChoice);
+    expect(allQuestionsAnswered(answered.answers)).toBe(false);
+    expect(getUnlockedStep(answered)).toBe(1);
+
+    for (let index = 1; index < QUESTIONS.length; index += 1) {
+      answered = answerFirstGrimoireQuestion(answered, index, QUESTIONS[index].correct);
+    }
+    expect(allQuestionsAnswered(answered.answers)).toBe(true);
+    expect(allAnswersCorrect(answered.answers)).toBe(false);
+    expect(getUnlockedStep(answered)).toBe(2);
+
+    const focused = markFirstGrimoireFocus(answered);
+    expect(focused.focusCompleted).toBe(true);
+    expect(getUnlockedStep(focused)).toBe(3);
+    const restored = readFirstGrimoireSnapshot(JSON.stringify(focused));
+    expect(restored.focusCompleted).toBe(true);
+    expect(getUnlockedStep(restored)).toBe(3);
+
+    const reflected = saveFirstGrimoireReflection(
+      changeFirstGrimoireReflection(restored, "Uma síntese pessoal."),
+    );
+    const awarded = awardFirstJourney(reflected);
+    expect(isJourneyComplete(awarded)).toBe(true);
+    expect(awardFirstJourney(awarded)).toBe(awarded);
   });
 
   it("só registra foco após prática e não o duplica (CA-09/10/14)", () => {

@@ -8,6 +8,7 @@ import {
   FIRST_GRIMOIRE_STORE_EVENT,
   MAX_REFLECTION_CHARS,
   allAnswersCorrect,
+  allQuestionsAnswered,
   answerFirstGrimoireQuestion,
   awardFirstJourney,
   beginFirstGrimoire,
@@ -129,7 +130,7 @@ export function FirstGrimoireJourney({
   const currentAnswerSubmitted = submittedChoice !== null && selectedChoice === submittedChoice;
   const summarySteps = [
     { label: "Leitura", complete: snapshot.readingCompleted },
-    { label: "Três perguntas corretas", complete: allAnswersCorrect(snapshot.answers) },
+    { label: "Três perguntas respondidas", complete: allQuestionsAnswered(snapshot.answers) },
     { label: "Sessão de foco", complete: snapshot.focusCompleted },
     { label: "Síntese salva", complete: snapshot.reflectionSaved },
     { label: "Primeira Jornada", complete: completed },
@@ -301,7 +302,7 @@ export function FirstGrimoireJourney({
             )}
           </fieldset>
           {answeredCount === QUESTIONS.length && !allAnswersCorrect(snapshot.answers) && (
-            <p className={styles.hint}>As três respostas foram enviadas. Revise as incorretas para liberar a etapa de foco nesta versão demonstrativa.</p>
+            <p className={styles.hint}>As três respostas foram enviadas. Você já pode seguir para o foco ou revisar as incorretas, no seu ritmo.</p>
           )}
           <div className={styles.actions}>
             <button type="button" className={styles.secondary}
@@ -319,7 +320,7 @@ export function FirstGrimoireJourney({
               </button>
             ) : (
               <button type="button" className={styles.secondary}
-                disabled={!allAnswersCorrect(snapshot.answers) || !currentAnswerSubmitted}
+                disabled={!allQuestionsAnswered(snapshot.answers) || !currentAnswerSubmitted}
                 onClick={() => setRequestedStep(2)}>
                 Continuar para foco <ChevronRight size={17} aria-hidden="true" />
               </button>
