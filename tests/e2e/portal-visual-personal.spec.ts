@@ -88,6 +88,15 @@ test.describe("Portal Visual V0.1 — desktop pessoal", () => {
     expect(pageErrors, "Nenhum erro de pagina JavaScript").toEqual([]);
   });
 
+  test("captura o Grande Atrio no tema escuro em desktop", async ({ page }, testInfo) => {
+    await page.emulateMedia({ colorScheme: "dark" });
+    const atrium = await openPortal(page);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "mago-classico");
+    await expect(atrium.getByRole("link", { name: /Entrar no Primeiro Grimório/ })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await captureSyntheticView(page, testInfo, "portal-atrio-dark-1440x900.png");
+  });
+
   test("permite Tab, Shift+Tab e Enter para entrar no Primeiro Grimorio", async ({ page }) => {
     const atrium = await openPortal(page);
     const open = atrium.getByRole("link", { name: /Entrar no Primeiro Grimório/ });
@@ -167,5 +176,14 @@ test.describe("Portal Visual V0.1 — mobile pessoal", () => {
     // Reflow adicional: viewport estreito, sem modificar o zoom ou a escala do SO.
     await page.setViewportSize({ width: 320, height: 720 });
     await assertNoHorizontalOverflow(page);
+  });
+
+  test("captura o Grande Atrio no tema escuro em mobile", async ({ page }, testInfo) => {
+    await page.emulateMedia({ colorScheme: "dark" });
+    const atrium = await openPortal(page);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "mago-classico");
+    await expect(atrium.getByRole("link", { name: /Entrar no Primeiro Grimório/ })).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await captureSyntheticView(page, testInfo, "portal-atrio-mobile-dark-390x844.png");
   });
 });
