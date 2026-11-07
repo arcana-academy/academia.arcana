@@ -55,7 +55,7 @@ describe("public synthetic Arcana MVP", () => {
     }));
     render(<ArcanaExperience />);
     expect(within(screen.getByLabelText("Resumo da sua jornada")).getByText("75 XP")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Leitura/ })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByRole("list", { name: "Missões da demonstração" })).getByRole("button", { name: /Leitura/ })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("runs and registers an interruptible focus session", () => {
