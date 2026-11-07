@@ -15,8 +15,12 @@ afterEach(() => {
 describe("public synthetic Arcana MVP", () => {
   it("presents a clear demo disclosure with accessible missions", () => {
     render(<ArcanaExperience />);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Sua jornada começa");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("O conhecimento abre");
     expect(screen.getByText(/Demonstração sem conta e sem banco de dados/)).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Acessos do Portal do Conhecimento" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Entrar no Primeiro Grimório/ })).toHaveAttribute("href", "#primeiro-grimorio");
+    expect(screen.getByRole("region", { name: "Primeiro Grimório" })).toHaveAttribute("id", "primeiro-grimorio");
+    expect(screen.getByText(/O próximo ambiente está em preparação/)).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Missões concluídas" })).toHaveAttribute("value", "0");
     expect(within(screen.getByRole("list", { name: "Missões da demonstração" })).getAllByRole("button")).toHaveLength(3);
   });

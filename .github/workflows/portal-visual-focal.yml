@@ -1,0 +1,143 @@
+# Academia Arcana — Grande Atrio — QA focal pessoal e sintetico.
+# Este arquivo, sozinho, nao inicia nenhuma execucao.
+# Somente futuro push explicitamente autorizado para a branch isolada pode aciona-lo.
+# Sem Auth real, banco produtivo, segredos, merge, GHCR, Render ou publicacao.
+name: Portal Visual V0.1 — QA focal pessoal
+
+on:
+  push:
+    branches:
+      - work/aa-portal-visual-v01-20261106
+    paths:
+      - .github/workflows/portal-visual-focal.yml
+      - tests/e2e/portal-visual-personal.spec.ts
+      - tests/e2e/first-grimoire-personal.spec.ts
+      - src/app/experiencia/**
+      - src/app/layout.tsx
+      - src/application/providers/ApplicationProviders.tsx
+      - playwright.config.ts
+      - vitest.config.ts
+      - package.json
+      - package-lock.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-visual-focal-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qa-focal:
+    name: Vitest, build e Chromium — demonstracao sintetica
+    if: >-
+      github.repository == 'arcana-academy/academiaarcana' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/work/aa-portal-visual-v01-20261106'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      CI: 'true'
+      AA_FIRST_GRIMOIRE_BROWSER_FOCAL: '1'
+      AA_PORTAL_VISUAL_FOCAL: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+      npm_config_audit: 'false'
+      npm_config_fund: 'false'
+      NEXT_PUBLIC_SUPABASE_URL: https://abcdefghijklmnopqrst.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_AAAAAAAAAA_BBBBBBBBBBB_CCCCCCCC
+
+    steps:
+      - name: Checkout SHA exato sem persistir credenciais
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Guardas de branch, origem e revisao
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'arcana-academy/academiaarcana'
+          test "$GITHUB_EVENT_NAME" = 'push'
+          test "$GITHUB_REF" = 'refs/heads/work/aa-portal-visual-v01-20261106'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -f .github/workflows/portal-visual-focal.yml
+          test -f tests/e2e/portal-visual-personal.spec.ts
+          test -f tests/e2e/first-grimoire-personal.spec.ts
+          test -f src/app/experiencia/PortalAtrium.tsx
+          test -f src/app/experiencia/PortalAtrium.module.css
+          test -f src/app/experiencia/ArcanaExperience.test.tsx
+          test -z "$(git status --porcelain)"
+          echo "Repositorio: $GITHUB_REPOSITORY"
+          echo "Branch: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          echo "Run ID: $GITHUB_RUN_ID"
+          sha256sum .github/workflows/portal-visual-focal.yml \
+            tests/e2e/portal-visual-personal.spec.ts \
+            src/app/experiencia/PortalAtrium.tsx \
+            src/app/experiencia/PortalAtrium.module.css \
+            package-lock.json
+
+      - name: Configurar Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: Fixar npm 11.19.1
+        shell: bash
+        run: |
+          corepack enable npm
+          corepack prepare npm@11.19.1 --activate
+          node --version
+          npm --version
+
+      - name: Verificar supply chain e segregacao de segredos de build
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-supply-chain-workflows.cjs
+          node scripts/verify-dependency-lifecycle-scripts.cjs
+          node scripts/security/assert-build-secret-isolation-536.cjs
+
+      - name: Instalar somente dependencias do lockfile sem lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Recompilar apenas dependencia nativa revisada
+        run: npm rebuild unrs-resolver --ignore-scripts=false --no-audit --no-fund
+
+      - name: Vitest focal do Portal e do Primeiro Grimorio
+        run: |
+          ./node_modules/.bin/vitest run \
+            src/app/experiencia/demo-model.test.ts \
+            src/app/experiencia/ArcanaExperience.test.tsx \
+            src/app/experiencia/first-grimoire-model.test.ts \
+            src/app/experiencia/FirstGrimoireJourney.test.tsx \
+            --maxWorkers=1 --no-file-parallelism --reporter=verbose
+
+      - name: Build local sintetico sem credenciais produtivas
+        run: npm run build
+
+      - name: Instalar Chromium no runner descartavel
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Playwright focal do Portal e Primeiro Grimorio
+        run: |
+          ./node_modules/.bin/playwright test \
+            tests/e2e/portal-visual-personal.spec.ts \
+            tests/e2e/first-grimoire-personal.spec.ts \
+            --project=chromium --workers=1 --retries=0 --reporter=line
+
+      - name: Preservar somente evidencias sinteticas de navegador
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: portal-visual-qa-evidence-${{ github.sha }}
+          path: test-results/**
+          if-no-files-found: ignore
+          retention-days: 3
+
+# Sem jobs de deploy, registry, banco, autenticacao real ou mutacao remota.
+# PASS tecnico nao equivale a homologacao visual humana ou WCAG 2.2 AA integral.

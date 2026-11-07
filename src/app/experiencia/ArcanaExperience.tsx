@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Check, Clock3, Pause, Play, RotateCcw, ScrollText, Sparkles } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, Clock3, Pause, Play, RotateCcw, Sparkles } from "lucide-react";
 
 import {
   DEMO_STORAGE_KEY,
@@ -14,6 +14,7 @@ import {
   type DemoMission,
 } from "./demo-model";
 import { FirstGrimoireJourney } from "./FirstGrimoireJourney";
+import { PortalAtrium } from "./PortalAtrium";
 import styles from "./ArcanaExperience.module.css";
 
 const FOCUS_DURATION = 5 * 60;
@@ -127,12 +128,7 @@ export function ArcanaExperience() {
           <Link href="/" className={styles.back}><ArrowLeft size={16} aria-hidden="true" /> Voltar ao início</Link>
         </header>
 
-        <div className={styles.intro}>
-          <p className={styles.eyebrow}>O primeiro portal · experiência demonstrativa</p>
-          <h1>Sua jornada começa <em>com um pequeno passo.</em></h1>
-          <p>Explore uma prévia interativa do Santuário: crie missões, acompanhe conquistas e experimente o Foco sem pressão.</p>
-          <p className={styles.disclosure}><ScrollText size={17} aria-hidden="true" /> Demonstração sem conta e sem banco de dados. As alterações ficam apenas neste navegador e podem ser reiniciadas.</p>
-        </div>
+        <PortalAtrium />
 
         <div className={styles.overview} aria-label="Resumo da sua jornada">
           <div className={styles.stat}><span>Experiência</span><strong>{progress.xp} XP</strong><small>Pontos da demonstração</small></div>
@@ -140,11 +136,13 @@ export function ArcanaExperience() {
           <div className={styles.stat}><span>Sessões de foco</span><strong>{focusSessions}</strong><small>No seu próprio ritmo</small></div>
         </div>
 
-        <FirstGrimoireJourney
-          focusSignal={firstGrimoireFocusSignal}
-          resetSignal={firstGrimoireResetSignal}
-          demoXp={progress.xp}
-        />
+        <section id="primeiro-grimorio" className={styles.grimoireAnchor} aria-label="Primeiro Grimório" tabIndex={-1}>
+          <FirstGrimoireJourney
+            focusSignal={firstGrimoireFocusSignal}
+            resetSignal={firstGrimoireResetSignal}
+            demoXp={progress.xp}
+          />
+        </section>
 
         <div className={styles.columns}>
           <section className={styles.panel} aria-labelledby="demo-missions-title">

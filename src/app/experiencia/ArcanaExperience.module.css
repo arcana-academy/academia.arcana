@@ -3,7 +3,7 @@
   color: var(--aa-text-primary);
   background: var(--aa-surfaces-canvas);
   position: relative;
-  overflow: hidden;
+  overflow-x: clip;
 }
 .ambient {
   position: absolute;
@@ -19,13 +19,9 @@
 .brand { color: var(--aa-text-primary); font-family: var(--aa-typography-heading); font-size: 1.5rem; display: inline-flex; gap: .7rem; align-items: center; text-decoration: none; }
 .brand svg { color: var(--aa-accent-primary); }
 .back { display: inline-flex; gap: .4rem; align-items: center; color: var(--aa-text-secondary); text-decoration: none; font-size: .94rem; }
-.intro { max-width: 51rem; padding: 3.5rem 0 2.3rem; }
-.eyebrow, .kicker { text-transform: uppercase; color: var(--aa-accent-primary); font-size: .79rem; letter-spacing: .16em; font-weight: 750; }
-.intro h1 { font-family: var(--aa-typography-display); font-size: clamp(2.7rem, 5.3vw, 5rem); letter-spacing: -.025em; line-height: 1.13; margin: 1rem 0; }
-.intro h1 em { color: var(--aa-accent-primary); font-weight: 400; font-style: normal; }
-.intro > p:not(.eyebrow) { font-size: 1.065rem; line-height: 1.75; color: var(--aa-text-secondary); }
-.intro .disclosure { display: flex; gap: .65rem; align-items: flex-start; font-size: .9rem !important; margin-top: 1.6rem; padding: .85rem 1rem; background: var(--aa-surfaces-panel); border: 1px solid var(--aa-border-default); border-radius: var(--aa-radius-lg); }
-.disclosure svg { flex: 0 0 auto; margin-top: .2rem; color: var(--aa-accent-primary); }
+.kicker { text-transform: uppercase; color: var(--aa-accent-primary); font-size: .79rem; letter-spacing: .16em; font-weight: 750; }
+.grimoireAnchor { scroll-margin-top: 1.5rem; border-radius: var(--aa-radius-xl); }
+.grimoireAnchor:focus-visible { outline: var(--aa-focus-width) solid var(--aa-focus-ring); outline-offset: var(--aa-focus-offset); }
 .overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
 .stat, .panel { background: var(--aa-surfaces-panel); border: 1px solid var(--aa-border-default); box-shadow: var(--aa-shadows-sm); border-radius: var(--aa-radius-xl); }
 .stat { display: grid; padding: 1.45rem; gap: .4rem; }
@@ -83,7 +79,6 @@
   .shell { width: min(100% - 1.4rem, 72rem); }
   .topbar { align-items: flex-start; }
   .brand { font-size: 1.12rem; }
-  .intro { padding-top: 2rem; }
   .overview { grid-template-columns: 1fr; }
   .stat { padding: 1rem; }
   .focusActions { grid-template-columns: 1fr; }
