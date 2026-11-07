@@ -384,9 +384,23 @@
   .archInner { width: 46%; height: 78%; }
   .portalDoor { width: 41%; height: 72%; }
   .seal { top: 32%; }
-  .stepOne { width: 56%; }
-  .stepTwo { width: 67%; }
-  .stepThree { width: 78%; }
+  .stepOne { width: 56%; bottom: calc(11% + 2.25rem); }
+  .stepTwo { width: 67%; bottom: calc(7% + 2.25rem); }
+  .stepThree { width: 78%; bottom: calc(3% + 2.25rem); }
+  .sceneCaption {
+    bottom: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.25rem;
+    padding: .35rem .5rem;
+    border-top: 1px solid color-mix(in srgb, var(--aa-status-warning) 22%, var(--aa-border-default));
+    background: var(--aa-surfaces-inset);
+    font-size: .7rem;
+    letter-spacing: .12em;
+    line-height: 1.4;
+  }
 }
 
 @media (max-width: 34rem) {
