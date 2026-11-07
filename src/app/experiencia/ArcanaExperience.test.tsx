@@ -30,11 +30,11 @@ describe("public synthetic Arcana MVP", () => {
     const mission = screen.getByRole("button", { name: /Explorar um Grimório/ });
     fireEvent.click(mission);
     expect(mission).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("35 XP")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Resumo da sua jornada")).getByText("35 XP")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Missões concluídas" })).toHaveAttribute("value", "1");
     fireEvent.click(mission);
     expect(mission).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByText("0 XP")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Resumo da sua jornada")).getByText("0 XP")).toBeInTheDocument();
   });
 
   it("adds an accessible mission and can reset its local journey", () => {
@@ -54,7 +54,7 @@ describe("public synthetic Arcana MVP", () => {
       focusSessions: 2,
     }));
     render(<ArcanaExperience />);
-    expect(screen.getByText("75 XP")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Resumo da sua jornada")).getByText("75 XP")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Leitura/ })).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -66,7 +66,7 @@ describe("public synthetic Arcana MVP", () => {
     expect(screen.getByRole("timer")).toHaveTextContent("04:59");
     fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
     fireEvent.click(screen.getByRole("button", { name: "Registrar esta sessão" }));
-    expect(screen.getByText("20 XP")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Resumo da sua jornada")).getByText("20 XP")).toBeInTheDocument();
     expect(screen.getByRole("timer")).toHaveTextContent("05:00");
   });
 });
