@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   requireAuthenticatedUser: vi.fn(),
   executeMestreArcano: vi.fn(),
+  runSourceComparison: vi.fn(),
   consume: vi.fn(),
   createClient: vi.fn(),
   toolContext: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/application/intelligence/execute-mestre-arcano", () => ({
 
 vi.mock("@/infrastructure/openai/mestre-arcano", () => ({
   runMestreArcano: vi.fn(),
+  runMestreArcanoSourceComparison: mocks.runSourceComparison,
 }));
 
 vi.mock("@/infrastructure/openai/mestre-arcano-tool-context", () => ({
@@ -70,6 +72,11 @@ describe("POST /api/agent/mestre-arcano", () => {
     mocks.decryptCredentials.mockResolvedValue(null);
     mocks.toolContext.mockReturnValue({ tools: [] });
     mocks.executeMestreArcano.mockResolvedValue({ answer: "O Círculo Dourado." });
+    mocks.runSourceComparison.mockResolvedValue({
+      output: "Comparação concluída.",
+      responseId: null,
+      model: "gpt-5.6-sol",
+    });
     mocks.consume.mockResolvedValue({
       allowed: true,
       remaining: 9,
@@ -87,6 +94,57 @@ describe("POST /api/agent/mestre-arcano", () => {
     });
     expect(mocks.consume).toHaveBeenCalledWith("mestre-arcano");
     expect(mocks.executeMestreArcano).toHaveBeenCalledTimes(1);
+  });
+
+  it("compares two required source texts without loading private or external tools", async () => {
+    const response = await POST(post({
+      mode: "source-comparison",
+      sourceA: "  Texto da v1.0  ",
+      sourceB: "Texto da v1.1",
+      origin: "  Documento de referência  ",
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(mocks.consume).toHaveBeenCalledWith("mestre-arcano");
+    expect(mocks.runSourceComparison).toHaveBeenCalledWith(JSON.stringify({
+      task: "compare-source-texts",
+      sources: [
+        { id: "F01-A", title: "Seção 3.2 da v1.0", text: "Texto da v1.0" },
+        { id: "F01-B", title: "Seção 3.2 da v1.1", text: "Texto da v1.1" },
+      ],
+      origin: "Documento de referência",
+    }));
+    expect(mocks.toolContext).not.toHaveBeenCalled();
+    expect(mocks.decryptCredentials).not.toHaveBeenCalled();
+  });
+
+  it("allows source comparison without an origin", async () => {
+    await POST(post({
+      mode: "source-comparison",
+      sourceA: "Texto da v1.0",
+      sourceB: "Texto da v1.1",
+    }));
+
+    expect(mocks.runSourceComparison).toHaveBeenCalledWith(JSON.stringify({
+      task: "compare-source-texts",
+      sources: [
+        { id: "F01-A", title: "Seção 3.2 da v1.0", text: "Texto da v1.0" },
+        { id: "F01-B", title: "Seção 3.2 da v1.1", text: "Texto da v1.1" },
+      ],
+    }));
+  });
+
+  it.each([
+    [{ mode: "source-comparison", sourceA: " ", sourceB: "Texto B" }, 400],
+    [{ mode: "source-comparison", sourceA: "Texto A", sourceB: "" }, 400],
+    [{ mode: "source-comparison", sourceA: "a".repeat(3001), sourceB: "Texto B" }, 413],
+    [{ mode: "source-comparison", sourceA: "Texto A", sourceB: "Texto B", origin: "o".repeat(501) }, 413],
+  ])("rejects invalid source comparison payloads with status %i", async (payload, expectedStatus) => {
+    const response = await POST(post(payload));
+    expect(response.status).toBe(expectedStatus);
+    expect(mocks.consume).not.toHaveBeenCalled();
+    expect(mocks.runSourceComparison).not.toHaveBeenCalled();
   });
 
   it("refuses with 429 and never calls the model once the quota is exhausted", async () => {

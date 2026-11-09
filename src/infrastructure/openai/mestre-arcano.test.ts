@@ -4,6 +4,7 @@ import type { MestreArcanoToolContext } from "@/domains/intelligence";
 
 import {
   runMestreArcano,
+  runMestreArcanoSourceComparison,
   verifyOpenAIAgentConnection,
 } from "./mestre-arcano";
 
@@ -63,6 +64,50 @@ describe("Mestre Arcano OpenAI integration", () => {
     expect(String(init?.body)).not.toContain("test-secret");
   });
 
+
+  it("compares user-provided sources with prompt-injection guardrails and no tools", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-secret");
+    vi.stubEnv("OPENAI_AGENT_MODEL", "gpt-5.6-sol");
+
+    const input = JSON.stringify({
+      task: "compare-source-texts",
+      sources: [
+        { id: "F01-A", text: "Trecho A" },
+        { id: "F01-B", text: "Trecho B" },
+      ],
+    });
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "resp_comparison",
+          model: "gpt-5.6-sol",
+          output_text: "As fontes apresentam estas diferenças.",
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await runMestreArcanoSourceComparison(input, { fetchImpl });
+    expect(result).toEqual({
+      output: "As fontes apresentam estas diferenças.",
+      responseId: "resp_comparison",
+      model: "gpt-5.6-sol",
+    });
+
+    const [, init] = fetchImpl.mock.calls[0] ?? [];
+    const body = JSON.parse(String(init?.body)) as {
+      input?: string;
+      instructions?: string;
+      tools?: unknown[];
+      tool_choice?: string;
+    };
+    expect(body.input).toBe(input);
+    expect(body.tools).toEqual([]);
+    expect(body.tool_choice).toBe("none");
+    expect(body.instructions).toContain("dado não confiável");
+    expect(body.instructions).toContain("Não use ferramentas");
+    expect(body.instructions).toContain("Responda em português");
+  });
 
   it("sends pedagogical guardrails that preserve active learning and learner agency", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-secret");

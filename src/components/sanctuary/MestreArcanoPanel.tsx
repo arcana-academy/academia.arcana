@@ -41,6 +41,13 @@ export function MestreArcanoPanel() {
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [sourceA, setSourceA] = useState("");
+  const [sourceB, setSourceB] = useState("");
+  const [sourceOrigin, setSourceOrigin] = useState("");
+  const [comparisonOutput, setComparisonOutput] = useState<string | null>(null);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const [comparisonPending, setComparisonPending] = useState(false);
+  const hasBothSources = Boolean(sourceA.trim() && sourceB.trim());
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,6 +86,50 @@ export function MestreArcanoPanel() {
       );
     } finally {
       setPending(false);
+    }
+  }
+
+  async function submitSourceComparison(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedSourceA = sourceA.trim();
+    const normalizedSourceB = sourceB.trim();
+    const normalizedOrigin = sourceOrigin.trim();
+    if (!normalizedSourceA || !normalizedSourceB || comparisonPending) return;
+
+    setComparisonPending(true);
+    setComparisonError(null);
+    setComparisonOutput(null);
+
+    try {
+      const response = await fetch("/api/agent/mestre-arcano", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "source-comparison",
+          sourceA: normalizedSourceA,
+          sourceB: normalizedSourceB,
+          ...(normalizedOrigin ? { origin: normalizedOrigin } : {}),
+        }),
+      });
+
+      const payload = (await response.json()) as AgentResponse;
+      if (!response.ok || typeof payload.output !== "string") {
+        throw new Error(
+          typeof payload.error === "string"
+            ? payload.error
+            : "Não foi possível comparar as fontes.",
+        );
+      }
+
+      setComparisonOutput(payload.output);
+    } catch (requestError) {
+      setComparisonError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Não foi possível comparar as fontes.",
+      );
+    } finally {
+      setComparisonPending(false);
     }
   }
 
@@ -164,6 +215,91 @@ export function MestreArcanoPanel() {
           <div>{output}</div>
         </div>
       ) : null}
+
+      <section className="aa-mestre-source-comparison" aria-labelledby="mestre-source-comparison-title">
+        <div className="aa-mestre-source-heading">
+          <h3 id="mestre-source-comparison-title">2. Preenchimento direto nesta conversa</h3>
+          <p className="aa-state-copy">
+            Cole os dois trechos para receber uma comparação. A origem é opcional;
+            links informados não serão abertos automaticamente.
+          </p>
+        </div>
+        <form className="aa-mestre-source-form" onSubmit={submitSourceComparison}>
+          <div className="aa-mestre-source-fields">
+            <div className="aa-mestre-source-field">
+              <label htmlFor="mestre-source-a">
+                F01-A — Seção 3.2 da v1.0 <span className="aa-mestre-source-required">Obrigatória</span>
+              </label>
+              <textarea
+                id="mestre-source-a"
+                className="aa-input aa-mestre-source-text"
+                value={sourceA}
+                onChange={(event) => setSourceA(event.target.value)}
+                placeholder="Cole o texto da Seção 3.2 da v1.0..."
+                aria-describedby="mestre-source-a-hint"
+                rows={8}
+                maxLength={3000}
+                required
+                disabled={comparisonPending}
+              />
+              <p className="aa-state-copy" id="mestre-source-a-hint">Obrigatória · até 3.000 caracteres</p>
+            </div>
+            <div className="aa-mestre-source-field">
+              <label htmlFor="mestre-source-b">
+                F01-B — Seção 3.2 da v1.1 <span className="aa-mestre-source-required">Obrigatória</span>
+              </label>
+              <textarea
+                id="mestre-source-b"
+                className="aa-input aa-mestre-source-text"
+                value={sourceB}
+                onChange={(event) => setSourceB(event.target.value)}
+                placeholder="Cole o texto da Seção 3.2 da v1.1..."
+                aria-describedby="mestre-source-b-hint"
+                rows={8}
+                maxLength={3000}
+                required
+                disabled={comparisonPending}
+              />
+              <p className="aa-state-copy" id="mestre-source-b-hint">Obrigatória · até 3.000 caracteres</p>
+            </div>
+          </div>
+          <div className="aa-mestre-source-field">
+            <label htmlFor="mestre-source-origin">Origem (opcional)</label>
+            <input
+              id="mestre-source-origin"
+              className="aa-input"
+              value={sourceOrigin}
+              onChange={(event) => setSourceOrigin(event.target.value)}
+              placeholder="Documento, URL ou referência"
+              maxLength={500}
+              disabled={comparisonPending}
+            />
+          </div>
+          <p className="aa-state-copy" role="status" aria-live="polite">
+            {comparisonPending
+              ? "Enviando fontes para comparação..."
+              : hasBothSources
+                ? "Os dois textos foram preenchidos e estão prontos para comparação."
+                : "Aguardando preenchimento dos dois textos"}
+          </p>
+          <button
+            className="aa-button aa-button-primary"
+            type="submit"
+            disabled={!hasBothSources || comparisonPending}
+          >
+            {comparisonPending ? "Comparando..." : "Enviar fontes para comparação"}
+          </button>
+        </form>
+        {comparisonError ? (
+          <div className="aa-empty aa-mestre-feedback" role="alert"><p>{comparisonError}</p></div>
+        ) : null}
+        {comparisonOutput ? (
+          <div className="aa-mestre-response" aria-live="polite">
+            <p className="aa-eyebrow">Comparação das fontes</p>
+            <div>{comparisonOutput}</div>
+          </div>
+        ) : null}
+      </section>
     </section>
   );
 }

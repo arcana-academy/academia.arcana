@@ -4,6 +4,65 @@ import { describe, expect, it, vi } from "vitest";
 import { MestreArcanoPanel } from "./MestreArcanoPanel";
 
 describe("MestreArcanoPanel", () => {
+  it("enables direct source comparison only after both required texts are filled", () => {
+    render(<MestreArcanoPanel />);
+
+    const sourceA = screen.getByRole("textbox", { name: /F01-A.*Obrigatória/ });
+    const sourceB = screen.getByRole("textbox", { name: /F01-B.*Obrigatória/ });
+    const origin = screen.getByRole("textbox", { name: "Origem (opcional)" });
+    const button = screen.getByRole("button", { name: "Enviar fontes para comparação" });
+
+    expect(sourceA).toBeRequired();
+    expect(sourceB).toBeRequired();
+    expect(origin).not.toBeRequired();
+    expect(button).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Aguardando preenchimento dos dois textos");
+
+    fireEvent.change(sourceA, { target: { value: "   " } });
+    expect(button).toBeDisabled();
+    fireEvent.change(sourceA, { target: { value: "Texto da versão 1.0" } });
+    expect(button).toBeDisabled();
+    fireEvent.change(sourceB, { target: { value: "Texto da versão 1.1" } });
+    expect(button).toBeEnabled();
+    expect(screen.getByRole("status")).toHaveTextContent("prontos para comparação");
+  });
+
+  it("submits both source texts and the optional origin for comparison", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ output: "Mudanças identificadas entre as versões." }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    render(<MestreArcanoPanel />);
+    fireEvent.change(screen.getByRole("textbox", { name: /F01-A.*Obrigatória/ }), {
+      target: { value: "  Texto A  " },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: /F01-B.*Obrigatória/ }), {
+      target: { value: "Texto B" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Origem (opcional)" }), {
+      target: { value: "  Manual de referência  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar fontes para comparação" }));
+
+    expect(await screen.findByText("Mudanças identificadas entre as versões.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agent/mestre-arcano",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          mode: "source-comparison",
+          sourceA: "Texto A",
+          sourceB: "Texto B",
+          origin: "Manual de referência",
+        }),
+      }),
+    );
+    fetchMock.mockRestore();
+  });
+
   it("preenche uma sugestão sem enviar automaticamente", () => {
     render(<MestreArcanoPanel />);
 
