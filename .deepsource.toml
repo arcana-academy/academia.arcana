@@ -1,5 +1,16 @@
 version = 1
 
+# Os 10 scripts `.cjs` do repositório são CommonJS por design (`package.json`
+# tem `"type": "module"`). O analisador JavaScript do DeepSource não oferece
+# override de `module_system` por caminho/extensão
+# (https://docs.deepsource.com/docs/platform/reference/core-analyzers), então
+# os `.cjs` são excluídos da análise para evitar falsos diagnósticos de
+# sistema de módulos. Eles permanecem cobertos por ESLint, `node --check`,
+# CI e pelo secret scanning nativo do GitHub.
+exclude_patterns = [
+  "**/*.cjs"
+]
+
 [[analyzers]]
 name = "javascript"
 enabled = true
