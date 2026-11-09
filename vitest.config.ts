@@ -32,6 +32,8 @@ export default defineConfig({
       "**/scripts/qa/c03-synthetic-isolation.test.mjs",
       // Run native node:test canaries only with the dedicated isolated workflow.
       "**/scripts/security/test-build-secret-isolation-536.test.cjs",
+      // C135: native node:test contract belongs to the dedicated #536 workflow.
+      "**/scripts/security/test-docker-build-context-536.test.cjs",
       // F7/F8 closure-safety tests use node:test; run with node --test, not Vitest.
       "**/scripts/issue-triage/apply-f-series-triage.test.mjs",
     ],
