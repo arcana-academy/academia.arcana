@@ -56,8 +56,29 @@ jobs:
           cmp reviewed-recipe/Dockerfile stable/Dockerfile
           cmp reviewed-recipe/.dockerignore stable/.dockerignore
           cmp reviewed-recipe/scripts/smoke-production-container.sh stable/scripts/smoke-production-container.sh
+          # C144: preserve the byte-for-byte historical recipe checks above.
+          # Apply this explicit, workflow-reviewed additive overlay ONLY to the
+          # disposable fallback checkout. Do not edit the pinned recipe commit.
+          # Dockerfile-specific ignores supersede the root .dockerignore.
+          test ! -e stable/Dockerfile.dockerignore
+          if grep -Eq '^[[:space:]]*!' stable/.dockerignore; then
+            echo "Unreviewed Docker ignore negation; refusing fallback build." >&2
+            exit 1
+          fi
+          cat >> stable/.dockerignore <<'C144_FALLBACK_IGNORE_OVERLAY'
+          # C144 reviewed fallback-only defense: credential files at any depth.
+          **/.npmrc
+          **/.env
+          **/.env.*
+          C144_FALLBACK_IGNORE_OVERLAY
+          for pattern in '**/.npmrc' '**/.env' '**/.env.*'; do
+            grep -Fxq -- "$pattern" stable/.dockerignore
+          done
+          if grep -Eq '^[[:space:]]*!' stable/.dockerignore; then
+            echo "Docker ignore negation present; refusing fallback build." >&2
+            exit 1
+          fi
           test -z "$(git -C stable diff --name-only)"
-          grep -qF '.env.*' stable/.dockerignore
           grep -qF '*.pem' stable/.dockerignore
           grep -qF '*.key' stable/.dockerignore
           grep -qF 'AS runtime' stable/Dockerfile
