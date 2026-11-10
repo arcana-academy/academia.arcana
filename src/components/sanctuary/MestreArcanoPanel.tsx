@@ -35,6 +35,15 @@ const STARTER_PROMPTS = [
 const arcaneCore = "/assets/intelligence/aa-arcane-core.svg";
 
 /**
+ * Normaliza erros de requisição para exibição: usa a mensagem do `Error`
+ * quando disponível e o texto de reserva (`fallback`) para qualquer outra
+ * falha.
+ */
+function requestErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+/**
  * Envia um payload JSON ao endpoint do Mestre Arcano e devolve a resposta
  * textual do agente. Erros conhecidos da API são propagados com a mensagem
  * devolvida pelo servidor; respostas inesperadas usam `fallbackError`.
@@ -57,6 +66,66 @@ async function postMestreArcanoRequest(
   }
 
   return payload.output;
+}
+
+/**
+ * Monta o corpo da requisição do modo `source-comparison`, incluindo a
+ * origem somente quando informada (textos já normalizados pelo chamador).
+ */
+function comparisonRequestBody(
+  sourceA: string,
+  sourceB: string,
+  origin: string,
+): Record<string, unknown> {
+  return {
+    mode: "source-comparison",
+    sourceA,
+    sourceB,
+    ...(origin ? { origin } : {}),
+  };
+}
+
+/**
+ * Devolve o texto de estado da comparação: envio em andamento, textos
+ * prontos para comparar ou aguardando o preenchimento das duas fontes.
+ */
+function comparisonStatusText(
+  pending: boolean,
+  hasBothSources: boolean,
+): string {
+  if (pending) {
+    return "Enviando fontes para comparação...";
+  }
+
+  return hasBothSources
+    ? "Os dois textos foram preenchidos e estão prontos para comparação."
+    : "Aguardando preenchimento dos dois textos";
+}
+
+type ComparisonFeedbackProps = {
+  error: string | null;
+  output: string | null;
+};
+
+/**
+ * Blocos de feedback da comparação de fontes: alerta de erro (role="alert")
+ * e resposta do modelo (aria-live="polite"), renderizados somente quando há
+ * conteúdo.
+ */
+function ComparisonFeedback({ error, output }: ComparisonFeedbackProps) {
+  return (
+    <>
+      {error ? (
+        <div className="aa-empty aa-mestre-feedback" role="alert"><p>{error}</p></div>
+      ) : null}
+      {output ? (
+        <div className="aa-mestre-response" aria-live="polite">
+          <p className="aa-eyebrow">Comparação das fontes</p>
+          <div>{output}</div>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 type MestreSourceFieldProps = {
@@ -137,20 +206,17 @@ function MestreSourceComparisonSection() {
 
     try {
       const output = await postMestreArcanoRequest(
-        {
-          mode: "source-comparison",
-          sourceA: normalizedSourceA,
-          sourceB: normalizedSourceB,
-          ...(normalizedOrigin ? { origin: normalizedOrigin } : {}),
-        },
+        comparisonRequestBody(
+          normalizedSourceA,
+          normalizedSourceB,
+          normalizedOrigin,
+        ),
         "Não foi possível comparar as fontes.",
       );
       setComparisonOutput(output);
     } catch (requestError) {
       setComparisonError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Não foi possível comparar as fontes.",
+        requestErrorMessage(requestError, "Não foi possível comparar as fontes."),
       );
     } finally {
       setComparisonPending(false);
@@ -198,11 +264,7 @@ function MestreSourceComparisonSection() {
           />
         </div>
         <p className="aa-state-copy" role="status" aria-live="polite">
-          {comparisonPending
-            ? "Enviando fontes para comparação..."
-            : hasBothSources
-              ? "Os dois textos foram preenchidos e estão prontos para comparação."
-              : "Aguardando preenchimento dos dois textos"}
+          {comparisonStatusText(comparisonPending, hasBothSources)}
         </p>
         <button
           className="aa-button aa-button-primary"
@@ -212,15 +274,7 @@ function MestreSourceComparisonSection() {
           {comparisonPending ? "Comparando..." : "Enviar fontes para comparação"}
         </button>
       </form>
-      {comparisonError ? (
-        <div className="aa-empty aa-mestre-feedback" role="alert"><p>{comparisonError}</p></div>
-      ) : null}
-      {comparisonOutput ? (
-        <div className="aa-mestre-response" aria-live="polite">
-          <p className="aa-eyebrow">Comparação das fontes</p>
-          <div>{comparisonOutput}</div>
-        </div>
-      ) : null}
+      <ComparisonFeedback error={comparisonError} output={comparisonOutput} />
     </section>
   );
 }
@@ -263,9 +317,10 @@ export function MestreArcanoPanel() {
       setOutput(result);
     } catch (requestError) {
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Não foi possível consultar o Mestre Arcano.",
+        requestErrorMessage(
+          requestError,
+          "Não foi possível consultar o Mestre Arcano.",
+        ),
       );
     } finally {
       setPending(false);

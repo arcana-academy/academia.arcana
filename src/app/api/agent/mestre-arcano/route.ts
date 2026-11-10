@@ -31,6 +31,10 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 type JsonErrorResponse = ReturnType<typeof NextResponse.json>;
 
+type MestreArcanoHelpLevelValue = NonNullable<
+  ReturnType<typeof resolveMestreArcanoHelpLevel>
+>;
+
 /**
  * Resultado de uma etapa de parsing/validação: ou o valor pronto para uso
  * (`ok: true`) ou a resposta de erro que deve ser devolvida ao cliente
@@ -39,6 +43,17 @@ type JsonErrorResponse = ReturnType<typeof NextResponse.json>;
 type StepResult<T> =
   | { ok: true; value: T }
   | { ok: false; response: JsonErrorResponse };
+
+/**
+ * Restringe um corpo JSON já parseado a um objeto simples (ou `null`):
+ * JSON pode ser `null`, array ou primitivo, e nada deve ser dereferenciado
+ * antes dessa validação.
+ */
+function asPayloadObject(body: unknown): Record<string, unknown> | null {
+  return typeof body === "object" && body !== null && !Array.isArray(body)
+    ? (body as Record<string, unknown>)
+    : null;
+}
 
 /**
  * Monta o payload JSON determinístico da tarefa de comparação de fontes,
@@ -63,7 +78,7 @@ function buildSourceComparisonInput(
 /**
  * Lê o corpo da requisição como JSON e valida o campo `mode`, devolvendo o
  * payload (possivelmente `null`) e se a requisição é uma comparação de
- * fontes. Corpo malformado vira resposta 400; modo desconhecido também.
+ * fontes. Corpo malformado ou modo desconhecido viram resposta 400.
  */
 async function parseValidatedPayload(
   request: Request,
@@ -83,12 +98,7 @@ async function parseValidatedPayload(
     };
   }
 
-  // JSON may be null, an array, or a primitive. Never dereference until validated.
-  const payload =
-    typeof body === "object" && body !== null && !Array.isArray(body)
-      ? (body as Record<string, unknown>)
-      : null;
-
+  const payload = asPayloadObject(body);
   const mode = payload?.mode;
   const isSourceComparison = mode === "source-comparison";
   if (mode !== undefined && !isSourceComparison) {
@@ -105,6 +115,14 @@ async function parseValidatedPayload(
 }
 
 /**
+ * Indica se o valor recebido é um texto não vazio (após trim), usado para
+ * validar campos obrigatórios sem repetir checagens de tipo.
+ */
+function hasNonEmptyText(value: unknown): value is string {
+  return typeof value === "string" && Boolean(value.trim());
+}
+
+/**
  * Valida os textos das duas fontes da comparação: obrigatórios, não vazios e
  * com no máximo 3.000 caracteres cada. Devolve os textos normalizados (trim)
  * e a origem ainda não validada, preservando a ordem original das respostas
@@ -116,10 +134,7 @@ function validateComparisonSourceTexts(
   const sourceA = payload?.sourceA;
   const sourceB = payload?.sourceB;
 
-  if (
-    typeof sourceA !== "string" || !sourceA.trim() ||
-    typeof sourceB !== "string" || !sourceB.trim()
-  ) {
+  if (!hasNonEmptyText(sourceA) || !hasNonEmptyText(sourceB)) {
     return {
       ok: false,
       response: NextResponse.json(
@@ -159,9 +174,7 @@ function validateComparisonSourceTexts(
  * (400 caso contrário) com no máximo 500 caracteres (413 quando excedido).
  * Devolve a origem normalizada, ou string vazia quando ausente.
  */
-function validateComparisonOrigin(
-  origin: unknown,
-): StepResult<string> {
+function validateComparisonOrigin(origin: unknown): StepResult<string> {
   if (origin !== undefined && typeof origin !== "string") {
     return {
       ok: false,
@@ -276,6 +289,66 @@ function resolveAgentInput(parsed: {
 }
 
 /**
+ * Valida o nível de ajuda informado no payload, convertendo valor ausente ou
+ * inválido em resposta 400 e devolvendo o nível resolvido quando válido.
+ */
+function validateHelpLevel(
+  payload: Record<string, unknown> | null,
+): StepResult<MestreArcanoHelpLevelValue> {
+  const helpLevel = resolveMestreArcanoHelpLevel(payload?.helpLevel);
+  if (helpLevel === null) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Nível de ajuda inválido." },
+        { status: 400 },
+      ),
+    };
+  }
+
+  return { ok: true, value: helpLevel };
+}
+
+/**
+ * Orquestra o parsing e toda a validação da requisição (payload, modo,
+ * input e nível de ajuda), devolvendo os valores prontos para execução ou a
+ * resposta de erro da primeira etapa que falhar.
+ */
+async function validateRequest(
+  request: Request,
+): Promise<
+  StepResult<{
+    input: string;
+    helpLevel: MestreArcanoHelpLevelValue;
+    isSourceComparison: boolean;
+  }>
+> {
+  const parsed = await parseValidatedPayload(request);
+  if (!parsed.ok) {
+    return parsed;
+  }
+
+  const resolvedInput = resolveAgentInput(parsed.value);
+  if (!resolvedInput.ok) {
+    return resolvedInput;
+  }
+
+  const helpLevel = validateHelpLevel(parsed.value.payload);
+  if (!helpLevel.ok) {
+    return helpLevel;
+  }
+
+  return {
+    ok: true,
+    value: {
+      input: resolvedInput.value,
+      helpLevel: helpLevel.value,
+      isSourceComparison: parsed.value.isSourceComparison,
+    },
+  };
+}
+
+/**
  * Consome uma unidade da cota de rate limit do Mestre Arcano e devolve a
  * resposta de bloqueio quando o limite foi atingido (ou quando o limitador
  * não consegue responder), ou `null` quando a requisição pode prosseguir.
@@ -369,7 +442,7 @@ async function executeAgentConversation(options: {
   supabase: SupabaseServerClient;
   subjectId: string;
   input: string;
-  helpLevel: NonNullable<ReturnType<typeof resolveMestreArcanoHelpLevel>>;
+  helpLevel: MestreArcanoHelpLevelValue;
 }): Promise<JsonErrorResponse> {
   const { supabase, subjectId, input, helpLevel } = options;
   const microsoftSharePointCredentials =
@@ -428,42 +501,29 @@ function agentErrorResponse(error: unknown): JsonErrorResponse {
 }
 
 /**
- * Handler POST do Mestre Arcano: autentica o usuário, valida o payload
- * (mensagem livre ou comparação de fontes), resolve o nível de ajuda e
- * delega a execução ao fluxo correspondente, sempre com rate limiting.
+ * Handler POST do Mestre Arcano: autentica o usuário, delega a validação
+ * completa do payload e executa o fluxo correspondente (mensagem livre ou
+ * comparação de fontes), sempre com rate limiting.
  */
 export async function POST(request: Request) {
   const claims = await requireAuthenticatedUser();
 
-  const parsed = await parseValidatedPayload(request);
-  if (!parsed.ok) {
-    return parsed.response;
+  const validated = await validateRequest(request);
+  if (!validated.ok) {
+    return validated.response;
   }
 
-  const resolvedInput = resolveAgentInput(parsed.value);
-  if (!resolvedInput.ok) {
-    return resolvedInput.response;
-  }
-
-  const helpLevel = resolveMestreArcanoHelpLevel(
-    parsed.value.payload?.helpLevel,
-  );
-  if (helpLevel === null) {
-    return NextResponse.json(
-      { error: "Nível de ajuda inválido." },
-      { status: 400 },
-    );
-  }
+  const { input, helpLevel, isSourceComparison } = validated.value;
 
   try {
     const supabase = await createClient();
 
-    return parsed.value.isSourceComparison
-      ? await executeSourceComparison(supabase, resolvedInput.value)
+    return isSourceComparison
+      ? await executeSourceComparison(supabase, input)
       : await executeAgentConversation({
           supabase,
           subjectId: claims.sub,
-          input: resolvedInput.value,
+          input,
           helpLevel,
         });
   } catch (error) {
