@@ -62,6 +62,22 @@ describe("Mestre Arcano OpenAI integration", () => {
     const [, init] = fetchImpl.mock.calls[0] ?? [];
     expect(init?.headers).toMatchObject({ Authorization: "Bearer test-secret" });
     expect(String(init?.body)).not.toContain("test-secret");
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("maps a stalled provider connection to a controlled timeout error", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-secret");
+    vi.stubEnv("OPENAI_AGENT_MODEL", "gpt-5.6-sol");
+
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(
+        new DOMException("The operation timed out.", "TimeoutError"),
+      );
+
+    await expect(
+      runMestreArcanoSourceComparison("input", { fetchImpl }),
+    ).rejects.toThrow("OpenAI request timed out.");
   });
 
 

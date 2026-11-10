@@ -106,6 +106,11 @@ describe("POST /api/agent/mestre-arcano", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({
+      output: "Comparação concluída.",
+      responseId: null,
+      model: "gpt-5.6-sol",
+    });
     expect(mocks.consume).toHaveBeenCalledWith("mestre-arcano");
     expect(mocks.runSourceComparison).toHaveBeenCalledWith(JSON.stringify({
       task: "compare-source-texts",

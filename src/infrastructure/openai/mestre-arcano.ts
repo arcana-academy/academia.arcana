@@ -8,6 +8,9 @@ import {
 
 const OPENAI_API_ORIGIN = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-5.6-sol";
+// Mesmo patamar de PROVIDER_TIMEOUT_MS do open-source-ai-gateway: uma
+// resposta do modelo que não chega em 30s é tratada como falha controlada.
+const OPENAI_REQUEST_TIMEOUT_MS = 30_000;
 
 export const MESTRE_ARCANO_INSTRUCTION_POLICY_VERSION = "2026-10-09-v1";
 
@@ -79,6 +82,20 @@ function parseOutput(payload: ResponsesApiPayload): string {
   return result;
 }
 
+/** Detects fetch cancellations caused by the explicit request timeout. */
+function isRequestTimeout(error: unknown): boolean {
+  return (
+    error instanceof DOMException
+      ? error.name === "TimeoutError"
+      : error instanceof Error && error.name === "AbortError"
+  );
+}
+
+/**
+ * Issues one authenticated OpenAI request with an explicit timeout, so a
+ * stalled provider connection surfaces as a controlled error instead of
+ * hanging the route until the infrastructure kills the request.
+ */
 async function openAIRequest(
   path: string,
   init: RequestInit,
@@ -96,8 +113,12 @@ async function openAIRequest(
         ...(init.headers ?? {}),
       },
       cache: "no-store",
+      signal: init.signal ?? AbortSignal.timeout(OPENAI_REQUEST_TIMEOUT_MS),
     });
-  } catch {
+  } catch (error) {
+    if (isRequestTimeout(error)) {
+      throw new Error("OpenAI request timed out.");
+    }
     throw new Error("OpenAI could not be reached from the server.");
   }
 }

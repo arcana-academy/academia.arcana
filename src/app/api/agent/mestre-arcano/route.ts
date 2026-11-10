@@ -487,6 +487,11 @@ function agentErrorResponse(error: unknown): JsonErrorResponse {
   const message =
     error instanceof Error ? error.message : "Falha na execução do agente.";
 
+  // Server-side breadcrumb for triage (same pattern as the other API routes);
+  // the client only receives the generic messages below, without internal
+  // error details.
+  console.error("Mestre Arcano agent execution failed:", message);
+
   if (message === "OpenAI integration is not configured.") {
     return NextResponse.json(
       { error: "O Mestre Arcano ainda não está configurado no ambiente." },

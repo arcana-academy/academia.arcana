@@ -189,6 +189,16 @@ function MestreSourceComparisonSection() {
   const hasBothSources = Boolean(sourceA.trim() && sourceB.trim());
 
   /**
+   * Limpa o resultado e o erro da comparação anterior assim que qualquer
+   * campo da seção é editado, evitando exibir resposta obsoleta que não
+   * corresponde mais aos textos preenchidos.
+   */
+  function clearComparisonFeedback() {
+    setComparisonOutput(null);
+    setComparisonError(null);
+  }
+
+  /**
    * Valida localmente os dois textos, envia a comparação ao endpoint do
    * Mestre Arcano e publica a resposta ou a mensagem de erro no estado da
    * seção, sempre limpando o resultado anterior antes da requisição.
@@ -239,7 +249,10 @@ function MestreSourceComparisonSection() {
             title="F01-A — Seção 3.2 da v1.0"
             placeholder="Cole o texto da Seção 3.2 da v1.0..."
             value={sourceA}
-            onChange={setSourceA}
+            onChange={(value) => {
+              setSourceA(value);
+              clearComparisonFeedback();
+            }}
             disabled={comparisonPending}
           />
           <MestreSourceField
@@ -247,7 +260,10 @@ function MestreSourceComparisonSection() {
             title="F01-B — Seção 3.2 da v1.1"
             placeholder="Cole o texto da Seção 3.2 da v1.1..."
             value={sourceB}
-            onChange={setSourceB}
+            onChange={(value) => {
+              setSourceB(value);
+              clearComparisonFeedback();
+            }}
             disabled={comparisonPending}
           />
         </div>
@@ -257,7 +273,10 @@ function MestreSourceComparisonSection() {
             id="mestre-source-origin"
             className="aa-input"
             value={sourceOrigin}
-            onChange={(event) => setSourceOrigin(event.target.value)}
+            onChange={(event) => {
+              setSourceOrigin(event.target.value);
+              clearComparisonFeedback();
+            }}
             placeholder="Documento, URL ou referência"
             maxLength={500}
             disabled={comparisonPending}

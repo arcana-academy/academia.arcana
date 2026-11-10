@@ -63,6 +63,32 @@ describe("MestreArcanoPanel", () => {
     fetchMock.mockRestore();
   });
 
+  it("limpa a comparação anterior quando um dos textos é editado", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ output: "Comparação antiga." }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    render(<MestreArcanoPanel />);
+    const sourceA = screen.getByRole("textbox", { name: /F01-A.*Obrigatória/ });
+    fireEvent.change(sourceA, { target: { value: "Texto A" } });
+    fireEvent.change(screen.getByRole("textbox", { name: /F01-B.*Obrigatória/ }), {
+      target: { value: "Texto B" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar fontes para comparação" }));
+
+    expect(await screen.findByText("Comparação antiga.")).toBeInTheDocument();
+
+    fireEvent.change(sourceA, { target: { value: "Texto A revisado" } });
+    await waitFor(() =>
+      expect(screen.queryByText("Comparação antiga.")).not.toBeInTheDocument(),
+    );
+
+    fetchMock.mockRestore();
+  });
+
   it("preenche uma sugestão sem enviar automaticamente", () => {
     render(<MestreArcanoPanel />);
 
