@@ -92,6 +92,17 @@ function isRequestTimeout(error: unknown): boolean {
 }
 
 /**
+ * Maps fetch failures to controlled provider errors: a stalled connection
+ * (timeout/abort) is distinguished from an unreachable provider.
+ */
+function toProviderError(error: unknown): Error {
+  if (isRequestTimeout(error)) {
+    return new Error("OpenAI request timed out.");
+  }
+  return new Error("OpenAI could not be reached from the server.");
+}
+
+/**
  * Issues one authenticated OpenAI request with an explicit timeout, so a
  * stalled provider connection surfaces as a controlled error instead of
  * hanging the route until the infrastructure kills the request.
@@ -116,10 +127,7 @@ async function openAIRequest(
       signal: init.signal ?? AbortSignal.timeout(OPENAI_REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
-    if (isRequestTimeout(error)) {
-      throw new Error("OpenAI request timed out.");
-    }
-    throw new Error("OpenAI could not be reached from the server.");
+    throw toProviderError(error);
   }
 }
 
