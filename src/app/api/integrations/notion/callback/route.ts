@@ -21,6 +21,12 @@ function redirectError(code: string) {
   );
 }
 
+/**
+ * Completes the Notion OAuth authorization for the signed-in user. The state
+ * must match the transaction cookie and be bound to the subject before the
+ * code is exchanged, the connection is verified and the encrypted credentials
+ * are stored. Every outcome returns to the Notion integration page.
+ */
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
   const searchParams = new URL(request.url).searchParams;

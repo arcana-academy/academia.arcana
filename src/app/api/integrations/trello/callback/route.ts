@@ -22,6 +22,13 @@ function redirectError(code: string) {
   );
 }
 
+/**
+ * Completes the Trello OAuth authorization for the signed-in user. The state
+ * must match the transaction cookie and be bound to the subject, and the PKCE
+ * verifier must be present, before the code is exchanged, the connection is
+ * verified and the encrypted credentials are stored. Every outcome returns to
+ * the Trello integration page.
+ */
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
   const { searchParams } = new URL(request.url);

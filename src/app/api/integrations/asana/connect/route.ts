@@ -14,6 +14,13 @@ import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Starts the Asana OAuth authorization for the signed-in user: stores a
+ * subject-bound state and a PKCE verifier in short-lived cookies and hands the
+ * browser to the provider's authorization endpoint. Any failure while
+ * preparing the hand-off returns to the Asana integration page as
+ * `not_configured`.
+ */
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
   try {

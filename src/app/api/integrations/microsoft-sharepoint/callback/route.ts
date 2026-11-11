@@ -15,6 +15,13 @@ import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Completes the Microsoft SharePoint OAuth authorization for the signed-in
+ * user. The state must match the transaction cookie and be bound to the
+ * subject, and the PKCE verifier must be present, before the code is
+ * exchanged, the connection is verified and the encrypted credentials are
+ * stored. Every outcome returns to the integrations page.
+ */
 export async function GET(request: Request) {
   const user = await requireAuthenticatedUser();
   const url = new URL(request.url);
