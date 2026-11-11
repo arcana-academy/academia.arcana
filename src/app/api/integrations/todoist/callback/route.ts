@@ -15,6 +15,7 @@ import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
+/** Returns the browser to the Todoist integration page, reporting `code`. */
 function redirectError(code: string) {
   return redirectToSameOriginPath(
     `/integracoes/todoist?error=${encodeURIComponent(code)}`,

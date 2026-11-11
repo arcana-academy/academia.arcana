@@ -14,6 +14,7 @@ import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
+/** Returns the browser to the Notion integration page, reporting `code`. */
 function redirectError(code: string) {
   return redirectToSameOriginPath(
     `/integracoes/notion?error=${encodeURIComponent(code)}`,

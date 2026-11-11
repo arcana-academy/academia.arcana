@@ -5,6 +5,11 @@ import {
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
 import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
+/**
+ * Completes the Outlook Calendar OAuth authorization for the signed-in user.
+ * A provider error or a missing `code` or `state` abandons the transaction;
+ * otherwise the code is redeemed. Every outcome returns to the Cronograma.
+ */
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
   const url = new URL(request.url);

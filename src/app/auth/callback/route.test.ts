@@ -13,10 +13,15 @@ vi.mock("@/lib/supabase/server", () => ({
 /** Origin the browser used; a relative Location must resolve back to it. */
 const PUBLIC_ORIGIN = "https://app.example";
 
+/** Resolves the `Location` header the way the browser at `publicUrl` does. */
 function resolvedLocation(response: Response, publicUrl: string): string {
   const location = response.headers.get("location");
-  expect(location).not.toBeNull();
-  return new URL(location!, publicUrl).toString();
+
+  if (location === null) {
+    throw new Error("Expected the response to carry a Location header.");
+  }
+
+  return new URL(location, publicUrl).toString();
 }
 
 describe("GET /auth/callback", () => {

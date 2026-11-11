@@ -34,7 +34,7 @@ const GUARDED_SURFACES = [
 const fixtures: string[] = [];
 
 /** Copies the guarded surfaces into a disposable directory. */
-function createRepositoryCopy(): string {
+const createRepositoryCopy = (): string => {
   const directory = mkdtempSync(join(tmpdir(), "aa-canonical-infra-"));
   fixtures.push(directory);
 
@@ -45,15 +45,14 @@ function createRepositoryCopy(): string {
   }
 
   return directory;
-}
+};
 
 /** Runs the guard with `directory` as the repository root. */
-function runGuard(directory: string) {
-  return spawnSync(process.execPath, [script], {
+const runGuard = (directory: string) =>
+  spawnSync(process.execPath, [script], {
     cwd: directory,
     encoding: "utf8",
   });
-}
 
 afterEach(() => {
   for (const directory of fixtures.splice(0)) {

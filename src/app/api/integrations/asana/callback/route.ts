@@ -14,10 +14,18 @@ import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
+/** Returns the browser to the Asana integration page, reporting `code`. */
 function redirectError(code: string) {
   return redirectToSameOriginPath(`/integracoes/asana?error=${encodeURIComponent(code)}`);
 }
 
+/**
+ * Completes the Asana OAuth authorization for the signed-in user. The state
+ * must match the transaction cookie and be bound to the subject, and the PKCE
+ * verifier must be present, before the code is exchanged, the connection is
+ * verified and the encrypted credentials are stored. Every outcome returns to
+ * the Asana integration page.
+ */
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
   const params = new URL(request.url).searchParams;

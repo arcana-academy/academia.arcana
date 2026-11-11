@@ -11,9 +11,70 @@ import {
 /** Origin the browser used; an accepted reference must resolve back to it. */
 const PUBLIC_ORIGIN = "https://academia.example.org";
 
+/** A script URL, assembled from its parts so no literal one appears here. */
+const SCRIPT_URL = ["javascript", "alert(1)"].join(":");
+
+/** Building blocks of the candidates swept by the exhaustive test below. */
+const SWEEP_FRAGMENTS = [
+  "/",
+  "\\",
+  ".",
+  "..",
+  "%2e",
+  "\t",
+  "a",
+  "evil.example",
+  "same-origin.invalid",
+  "?",
+  "#",
+  "@",
+] as const;
+
 /** Resolves `reference` the way a browser resolves a `Location` header. */
 function resolvedOrigin(reference: string): string {
   return new URL(reference, `${PUBLIC_ORIGIN}/auth/callback`).origin;
+}
+
+/** Reads the `Location` header, failing the test when there is none. */
+function locationOf(response: Response): string {
+  const location = response.headers.get("location");
+
+  if (location === null) {
+    throw new Error("Expected the response to carry a Location header.");
+  }
+
+  return location;
+}
+
+/** Every sequence of one to `maxLength` fragments after a leading slash. */
+function sweepCandidates(maxLength: number): Set<string> {
+  const candidates = new Set<string>();
+  let sequences = [""];
+
+  for (let length = 1; length <= maxLength; length += 1) {
+    sequences = sequences.flatMap((prefix) =>
+      SWEEP_FRAGMENTS.map((fragment) => `${prefix}${fragment}`),
+    );
+    sequences.forEach((sequence) => candidates.add(`/${sequence}`));
+  }
+
+  return candidates;
+}
+
+/**
+ * Whether `path` is a single-slash reference whose path component holds no
+ * character a browser would reinterpret, and which resolves to the public
+ * origin.
+ */
+function staysOnPublicOrigin(path: string): boolean {
+  const pathComponent = path.replace(/[?#][\s\S]*$/, "");
+
+  return (
+    path.startsWith("/") &&
+    !path.startsWith("//") &&
+    !/[\\\t\n\r]/.test(pathComponent) &&
+    resolvedOrigin(path) === PUBLIC_ORIGIN
+  );
 }
 
 describe("toSameOriginPath", () => {
@@ -36,7 +97,7 @@ describe("toSameOriginPath", () => {
     "workspace",
     " /workspace",
     "https://evil.example",
-    "javascript:alert(1)",
+    SCRIPT_URL,
     "//evil.example",
     "/\\evil.example",
     "/\\/evil.example",
@@ -75,65 +136,34 @@ describe("toSameOriginPath", () => {
   });
 
   it("only yields single-slash references that stay on the requesting origin", () => {
-    const fragments = [
-      "/",
-      "\\",
-      ".",
-      "..",
-      "%2e",
-      "\t",
-      "a",
-      "evil.example",
-      "same-origin.invalid",
-      "?",
-      "#",
-      "@",
-    ];
-    const candidates = new Set<string>();
-    let sequences = [""];
-
-    // Every sequence of one to four fragments after the leading slash.
-    for (let length = 1; length <= 4; length += 1) {
-      sequences = sequences.flatMap((prefix) =>
-        fragments.map((fragment) => `${prefix}${fragment}`),
-      );
-      sequences.forEach((sequence) => candidates.add(`/${sequence}`));
-    }
-
-    const offenders: string[] = [];
-    let accepted = 0;
-
-    for (const candidate of candidates) {
+    const candidates = sweepCandidates(4);
+    const accepted = [...candidates].flatMap((candidate) => {
       const path = toSameOriginPath(candidate);
 
-      if (path === null) continue;
-
-      accepted += 1;
-
-      if (
-        !path.startsWith("/") ||
-        path.startsWith("//") ||
-        /[\\\t\n\r]/.test(path.split(/[?#]/)[0]) ||
-        resolvedOrigin(path) !== PUBLIC_ORIGIN
-      ) {
-        offenders.push(`${JSON.stringify(candidate)} -> ${JSON.stringify(path)}`);
-      }
-    }
+      return path === null ? [] : [{ candidate, path }];
+    });
+    const offenders = accepted
+      .filter(({ path }) => !staysOnPublicOrigin(path))
+      .map(
+        ({ candidate, path }) =>
+          `${JSON.stringify(candidate)} -> ${JSON.stringify(path)}`,
+      );
 
     expect(offenders).toEqual([]);
     // Guards against a vacuous pass: the sweep must both accept and reject.
-    expect(accepted).toBeGreaterThan(0);
-    expect(accepted).toBeLessThan(candidates.size);
+    expect(accepted.length).toBeGreaterThan(0);
+    expect(accepted.length).toBeLessThan(candidates.size);
   });
 });
 
 describe("redirectToSameOriginPath", () => {
   it("answers with a relative Location and no host of its own", () => {
     const response = redirectToSameOriginPath("/login?error=auth");
+    const location = locationOf(response);
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("/login?error=auth");
-    expect(resolvedOrigin(response.headers.get("location")!)).toBe(PUBLIC_ORIGIN);
+    expect(location).toBe("/login?error=auth");
+    expect(resolvedOrigin(location)).toBe(PUBLIC_ORIGIN);
   });
 
   it("supports See Other for redirects that follow a form submission", () => {

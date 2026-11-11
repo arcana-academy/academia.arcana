@@ -20,6 +20,22 @@ const PATH_ABSOLUTE_REFERENCE = /^\/(?![/\\])/;
 export type SameOriginRedirectStatus = 303 | 307;
 
 /**
+ * Parses `reference` against the placeholder origin, or returns `null` when
+ * it is not a path-absolute reference or cannot be parsed at all.
+ */
+function parsePathAbsoluteReference(reference: string): URL | null {
+  if (!PATH_ABSOLUTE_REFERENCE.test(reference)) {
+    return null;
+  }
+
+  try {
+    return new URL(reference, PARSE_ORIGIN);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Normalises `value` into an application-relative reference
  * (`/path?query#fragment`), or returns `null` when it is not one.
  *
@@ -35,17 +51,11 @@ export function toSameOriginPath(
     return null;
   }
 
-  const reference = value.replace(IGNORED_BY_URL_PARSERS, "");
+  const parsed = parsePathAbsoluteReference(
+    value.replace(IGNORED_BY_URL_PARSERS, ""),
+  );
 
-  if (!PATH_ABSOLUTE_REFERENCE.test(reference)) {
-    return null;
-  }
-
-  let parsed: URL;
-
-  try {
-    parsed = new URL(reference, PARSE_ORIGIN);
-  } catch {
+  if (!parsed) {
     return null;
   }
 

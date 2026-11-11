@@ -43,7 +43,8 @@ const ABSOLUTE_REDIRECT_CALL = /\b(?:Next)?Response\.redirect\(/;
 const REDIRECT_RESOLVED_FROM_A_URL = /\b(?:Next)?Response\.redirect\(\s*new URL\(/;
 const RELATIVE_REDIRECT_CALL = /\bredirectToSameOriginPath\(/;
 
-function collectRouteHandlers(directory: string): string[] {
+/** Repository-relative paths of every `route.ts` below `directory`. */
+const collectRouteHandlers = (directory: string): string[] => {
   const handlers: string[] = [];
 
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -57,11 +58,11 @@ function collectRouteHandlers(directory: string): string[] {
   }
 
   return handlers.sort();
-}
+};
 
-function source(path: string): string {
-  return readFileSync(resolve(process.cwd(), path), "utf8");
-}
+/** Source text of the repository file at `path`. */
+const source = (path: string): string =>
+  readFileSync(resolve(process.cwd(), path), "utf8");
 
 const routeHandlers = collectRouteHandlers(appRoot);
 

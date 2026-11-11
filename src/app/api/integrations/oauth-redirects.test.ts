@@ -25,7 +25,7 @@ const mocked = vi.hoisted(() => {
 });
 
 vi.mock("next/headers", () => ({
-  cookies: async () => mocked.cookieStore,
+  cookies: () => Promise.resolve(mocked.cookieStore),
 }));
 
 vi.mock("@/lib/auth/require-authenticated-user", () => ({
@@ -146,17 +146,28 @@ function configure(provider: Provider) {
   vi.stubEnv(redirectUri, publicCallbackUrl(provider));
 }
 
+/** Reads the `Location` header, failing the test when there is none. */
+function locationOf(response: Response): string {
+  const location = response.headers.get("location");
+
+  if (location === null) {
+    throw new Error("Expected the response to carry a Location header.");
+  }
+
+  return location;
+}
+
 function expectApplicationRedirect(
   response: Response,
   provider: Provider,
   path: string,
 ) {
-  const location = response.headers.get("location");
+  const location = locationOf(response);
 
   expect(response.status).toBe(307);
   // Relative on purpose: the browser resolves it against the public origin.
   expect(location).toBe(path);
-  expect(new URL(location!, publicCallbackUrl(provider)).origin).toBe(
+  expect(new URL(location, publicCallbackUrl(provider)).origin).toBe(
     PUBLIC_ORIGIN,
   );
 }
@@ -166,13 +177,13 @@ async function startTransaction(provider: Provider): Promise<string> {
   configure(provider);
 
   const response = await provider.connect(internalRequest(provider, "connect"));
-  const state = new URL(response.headers.get("location")!).searchParams.get(
-    "state",
-  );
+  const state = new URL(locationOf(response)).searchParams.get("state");
 
-  expect(state).toBeTruthy();
+  if (!state) {
+    throw new Error("Expected the provider hand-off to carry a state.");
+  }
 
-  return state!;
+  return state;
 }
 
 describe.each(PROVIDERS)("$name OAuth redirects", (provider) => {
@@ -202,7 +213,7 @@ describe.each(PROVIDERS)("$name OAuth redirects", (provider) => {
     configure(provider);
 
     const response = await provider.connect(internalRequest(provider, "connect"));
-    const location = new URL(response.headers.get("location")!);
+    const location = new URL(locationOf(response));
 
     expect(response.status).toBe(307);
     expect(`${location.origin}${location.pathname}`).toBe(
