@@ -14,6 +14,7 @@ if (lock.lockfileVersion !== 3) {
 }
 
 const allowedInstallScripts = new Map([
+  ["node_modules/core-js", "3.51.0"],
   ["node_modules/fsevents", "2.3.3"],
   ["node_modules/unrs-resolver", "1.12.2"],
 ]);

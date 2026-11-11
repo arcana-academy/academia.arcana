@@ -7,6 +7,7 @@ import {
   FeedbackAuthenticationError,
 } from "@/infrastructure/supabase/feedback-repository";
 import { SupabaseApiRateLimitRepository } from "@/infrastructure/supabase/security/api-rate-limit-repository";
+import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { apiRateLimitResponse } from "@/lib/http/api-rate-limit-response";
 import { createClient } from "@/lib/supabase/server";
 
@@ -45,6 +46,11 @@ export async function POST(request: Request) {
     if (limitResponse) return limitResponse;
 
     const record = await createFeedback(input);
+    if (record.userId) {
+      captureServerEvent(record.userId, "feedback_submitted", {
+        feedback_length: input.feedback.length,
+      });
+    }
     return NextResponse.json(
       { id: record.id, createdAt: record.createdAt },
       { status: 201, headers: NO_STORE_HEADERS },

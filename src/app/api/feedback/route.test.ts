@@ -4,6 +4,11 @@ const mocks = vi.hoisted(() => ({
   createFeedback: vi.fn(),
   consume: vi.fn(),
   createClient: vi.fn(),
+  captureServerEvent: vi.fn(),
+}));
+
+vi.mock("@/lib/analytics/posthog-server", () => ({
+  captureServerEvent: mocks.captureServerEvent,
 }));
 
 vi.mock("@/infrastructure/supabase/feedback-repository", () => ({
@@ -43,6 +48,7 @@ const validInput = {
 
 const savedFeedback = {
   id: "feedback-1",
+  userId: "user-123",
   createdAt: "2026-10-11T10:00:00.000Z",
 };
 
@@ -63,13 +69,26 @@ describe("POST /api/feedback", () => {
 
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    await expect(response.json()).resolves.toEqual(savedFeedback);
+    await expect(response.json()).resolves.toEqual({
+      id: savedFeedback.id,
+      createdAt: savedFeedback.createdAt,
+    });
     expect(mocks.consume).toHaveBeenCalledWith("feedback");
     expect(mocks.createFeedback).toHaveBeenCalledWith({
       name: null,
       email: validInput.email,
       feedback: validInput.feedback,
     });
+  });
+
+  it("records feedback_submitted for the author without the email or text", async () => {
+    await POST(feedbackRequest(validInput));
+
+    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
+      "user-123",
+      "feedback_submitted",
+      { feedback_length: validInput.feedback.length },
+    );
   });
 
   it("returns 429 with Retry-After and stores nothing once the quota is exhausted", async () => {
@@ -150,6 +169,7 @@ describe("POST /api/feedback", () => {
 
     expect(response.status).toBe(401);
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual({
       error: "Entre na sua conta para enviar feedback.",
     });
