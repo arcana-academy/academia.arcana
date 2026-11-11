@@ -40,6 +40,10 @@ services:
         sync: false
       - key: NEXT_PUBLIC_HONEYBADGER_REVISION
         sync: false
+      - key: NEXT_PUBLIC_POSTHOG_KEY
+        sync: false
+      - key: NEXT_PUBLIC_POSTHOG_HOST
+        sync: false
       - key: MESTRE_ARCANO_WEB_RESEARCH_PROVIDER
         sync: false
       - key: PARALLEL_API_KEY

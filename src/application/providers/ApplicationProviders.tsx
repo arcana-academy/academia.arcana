@@ -7,6 +7,7 @@ import {
 } from "@/application/accessibility-preferences/AccessibilityPreferencesContext";
 import type { ApplicationIdentityState } from "@/application/identity/contracts";
 import { FlontsProvider } from "@/application/flonts/FlontsProvider";
+import { PostHogIdentitySync } from "@/application/providers/PostHogIdentitySync";
 import { VisualAccessibilityProvider } from "@/components/accessibility/AccessibilityPanel";
 import { ThemeProvider } from "@/design-system/themes";
 
@@ -43,6 +44,7 @@ export function ApplicationProviders({
         identity={identity}
       >
         <FlontsProvider>
+          <PostHogIdentitySync identity={identity} />
           {children}
         </FlontsProvider>
       </AccessibilityPreferencesProvider>
