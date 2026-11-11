@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
 
 import {
   encryptNotionCredentials,
@@ -11,18 +10,23 @@ import {
 } from "@/infrastructure/integrations/notion";
 import { verifySubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
-function redirectError(request: Request, code: string) {
-  return NextResponse.redirect(
-    new URL(
-      `/integracoes/notion?error=${encodeURIComponent(code)}`,
-      request.url,
-    ),
+/** Returns the browser to the Notion integration page, reporting `code`. */
+function redirectError(code: string) {
+  return redirectToSameOriginPath(
+    `/integracoes/notion?error=${encodeURIComponent(code)}`,
   );
 }
 
+/**
+ * Completes the Notion OAuth authorization for the signed-in user. The state
+ * must match the transaction cookie and be bound to the subject before the
+ * code is exchanged, the connection is verified and the encrypted credentials
+ * are stored. Every outcome returns to the Notion integration page.
+ */
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
   const searchParams = new URL(request.url).searchParams;
@@ -48,7 +52,7 @@ export async function GET(request: Request) {
     stateBoundToSubject = false;
   }
 
-  if (error) return redirectError(request, error);
+  if (error) return redirectError(error);
   if (
     !code ||
     !state ||
@@ -56,7 +60,7 @@ export async function GET(request: Request) {
     state !== storedState ||
     !stateBoundToSubject
   ) {
-    return redirectError(request, "invalid_state");
+    return redirectError("invalid_state");
   }
 
   try {
@@ -87,10 +91,8 @@ export async function GET(request: Request) {
       },
     );
 
-    return NextResponse.redirect(
-      new URL("/integracoes/notion?connected=1", request.url),
-    );
+    return redirectToSameOriginPath("/integracoes/notion?connected=1");
   } catch {
-    return redirectError(request, "authorization_failed");
+    return redirectError("authorization_failed");
   }
 }

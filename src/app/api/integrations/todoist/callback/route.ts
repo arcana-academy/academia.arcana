@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
 
 import {
   exchangeTodoistAuthorizationCode,
@@ -12,15 +11,24 @@ import {
 } from "@/infrastructure/integrations/todoist";
 import { verifySubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
-function redirectError(request: Request, code: string) {
-  return NextResponse.redirect(
-    new URL(`/integracoes/todoist?error=${encodeURIComponent(code)}`, request.url),
+/** Returns the browser to the Todoist integration page, reporting `code`. */
+function redirectError(code: string) {
+  return redirectToSameOriginPath(
+    `/integracoes/todoist?error=${encodeURIComponent(code)}`,
   );
 }
 
+/**
+ * Completes the Todoist OAuth authorization for the signed-in user. The state
+ * must match the transaction cookie and be bound to the subject, and the PKCE
+ * verifier must be present, before the code is exchanged, the connection is
+ * verified and the encrypted credentials are stored. Every outcome returns to
+ * the Todoist integration page.
+ */
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
 
@@ -50,7 +58,7 @@ export async function GET(request: Request) {
     stateBoundToSubject = false;
   }
 
-  if (error) return redirectError(request, error);
+  if (error) return redirectError(error);
   if (
     !code ||
     !state ||
@@ -59,7 +67,7 @@ export async function GET(request: Request) {
     !verifier ||
     !stateBoundToSubject
   ) {
-    return redirectError(request, "invalid_state");
+    return redirectError("invalid_state");
   }
 
   try {
@@ -88,10 +96,8 @@ export async function GET(request: Request) {
       },
     );
 
-    return NextResponse.redirect(
-      new URL("/integracoes/todoist?connected=1", request.url),
-    );
+    return redirectToSameOriginPath("/integracoes/todoist?connected=1");
   } catch {
-    return redirectError(request, "authorization_failed");
+    return redirectError("authorization_failed");
   }
 }

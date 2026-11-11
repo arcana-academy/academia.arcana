@@ -11,9 +11,17 @@ import {
 } from "@/infrastructure/integrations/microsoft-sharepoint";
 import { createSubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Starts the Microsoft SharePoint OAuth authorization for the signed-in user:
+ * stores a subject-bound state and a PKCE verifier in short-lived cookies and
+ * hands the browser to the provider's authorization endpoint. Any failure
+ * while preparing the hand-off returns to the integrations page as
+ * `microsoft_sharepoint_not_configured`.
+ */
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
 
@@ -49,8 +57,8 @@ export async function GET(request: Request) {
       }),
     );
   } catch {
-    return NextResponse.redirect(
-      new URL("/integracoes?error=microsoft_sharepoint_not_configured", request.url),
+    return redirectToSameOriginPath(
+      "/integracoes?error=microsoft_sharepoint_not_configured",
     );
   }
 }

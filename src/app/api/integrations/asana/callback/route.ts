@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
 import {
   ASANA_CREDENTIALS_COOKIE,
   ASANA_OAUTH_PKCE_COOKIE,
@@ -11,13 +10,22 @@ import {
 } from "@/infrastructure/integrations/asana";
 import { verifySubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
-function redirectError(request: Request, code: string) {
-  return NextResponse.redirect(new URL(`/integracoes/asana?error=${encodeURIComponent(code)}`, request.url));
+/** Returns the browser to the Asana integration page, reporting `code`. */
+function redirectError(code: string) {
+  return redirectToSameOriginPath(`/integracoes/asana?error=${encodeURIComponent(code)}`);
 }
 
+/**
+ * Completes the Asana OAuth authorization for the signed-in user. The state
+ * must match the transaction cookie and be bound to the subject, and the PKCE
+ * verifier must be present, before the code is exchanged, the connection is
+ * verified and the encrypted credentials are stored. Every outcome returns to
+ * the Asana integration page.
+ */
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
   const params = new URL(request.url).searchParams;
@@ -45,7 +53,7 @@ export async function GET(request: Request) {
     stateBoundToSubject = false;
   }
 
-  if (error) return redirectError(request, error);
+  if (error) return redirectError(error);
   if (
     !code ||
     !state ||
@@ -54,7 +62,7 @@ export async function GET(request: Request) {
     !verifier ||
     !stateBoundToSubject
   ) {
-    return redirectError(request, "invalid_state");
+    return redirectError("invalid_state");
   }
 
   try {
@@ -70,8 +78,8 @@ export async function GET(request: Request) {
       sameSite: "lax", secure: true,
     });
 
-    return NextResponse.redirect(new URL("/integracoes/asana?connected=1", request.url));
+    return redirectToSameOriginPath("/integracoes/asana?connected=1");
   } catch {
-    return redirectError(request, "authorization_failed");
+    return redirectError("authorization_failed");
   }
 }
