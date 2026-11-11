@@ -1,10 +1,9 @@
-import { NextResponse } from "next/server";
-
 import {
   clearOutlookAuthorizationTransaction,
   redeemOutlookAuthorizationCode,
 } from "@/infrastructure/integrations/outlook-calendar-oauth";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export async function GET(request: Request) {
   const claims = await requireAuthenticatedUser();
@@ -15,19 +14,13 @@ export async function GET(request: Request) {
 
   if (error || !code || !state) {
     await clearOutlookAuthorizationTransaction();
-    return NextResponse.redirect(
-      new URL("/cronograma?outlook=error", request.url),
-    );
+    return redirectToSameOriginPath("/cronograma?outlook=error");
   }
 
   try {
     await redeemOutlookAuthorizationCode(claims.sub, code, state);
-    return NextResponse.redirect(
-      new URL("/cronograma?outlook=connected", request.url),
-    );
+    return redirectToSameOriginPath("/cronograma?outlook=connected");
   } catch {
-    return NextResponse.redirect(
-      new URL("/cronograma?outlook=error", request.url),
-    );
+    return redirectToSameOriginPath("/cronograma?outlook=error");
   }
 }

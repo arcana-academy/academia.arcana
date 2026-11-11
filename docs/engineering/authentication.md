@@ -60,7 +60,11 @@ Password recovery deliberately returns a generic success message so the form doe
 ## 5. Callback and code exchange
 The callback receives a short-lived authorization `code`. A missing `code` is rejected. For the optional `next` destination, invalid values—including absolute URLs, protocol-relative paths such as `//evil.example`, malformed input, and destinations whose resolved origin differs from the application origin—are normalized to `/` before the callback continues.
 
+The normalized destination is validated a second time, because dot-segment removal can turn a value such as `/.//evil.example` into the protocol-relative `//evil.example`.
+
 Only after that destination normalization does the server call `supabase.auth.exchangeCodeForSession(code)`. Failed code exchanges redirect to `/login?error=auth`.
+
+Every redirect issued by the callback—and by the integration OAuth route handlers—carries a relative `Location` built by `src/lib/http/same-origin-redirect.ts`. Behind the hosting reverse proxy a route handler's `request.url` holds the internal listener origin rather than the public one, so an absolute URL derived from it is unreachable for the browser. A relative reference is resolved against the URL the browser actually requested and requires no trust in forwarded host headers. Only the hand-off to an external provider's authorization endpoint remains absolute; `tests/infrastructure/route-redirect-origin-contract.test.ts` enforces this split.
 
 ## 6. Session and token handling
 The repository delegates session and token lifecycle to `@supabase/ssr` and Supabase Auth.
