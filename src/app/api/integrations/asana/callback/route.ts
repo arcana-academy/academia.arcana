@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
 import {
   ASANA_CREDENTIALS_COOKIE,
   ASANA_OAUTH_PKCE_COOKIE,
@@ -11,11 +10,12 @@ import {
 } from "@/infrastructure/integrations/asana";
 import { verifySubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
-function redirectError(request: Request, code: string) {
-  return NextResponse.redirect(new URL(`/integracoes/asana?error=${encodeURIComponent(code)}`, request.url));
+function redirectError(code: string) {
+  return redirectToSameOriginPath(`/integracoes/asana?error=${encodeURIComponent(code)}`);
 }
 
 export async function GET(request: Request) {
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     stateBoundToSubject = false;
   }
 
-  if (error) return redirectError(request, error);
+  if (error) return redirectError(error);
   if (
     !code ||
     !state ||
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     !verifier ||
     !stateBoundToSubject
   ) {
-    return redirectError(request, "invalid_state");
+    return redirectError("invalid_state");
   }
 
   try {
@@ -70,8 +70,8 @@ export async function GET(request: Request) {
       sameSite: "lax", secure: true,
     });
 
-    return NextResponse.redirect(new URL("/integracoes/asana?connected=1", request.url));
+    return redirectToSameOriginPath("/integracoes/asana?connected=1");
   } catch {
-    return redirectError(request, "authorization_failed");
+    return redirectError("authorization_failed");
   }
 }

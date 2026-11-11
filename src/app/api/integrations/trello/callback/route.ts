@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
 
 import {
   exchangeTrelloAuthorizationCode,
@@ -12,12 +11,13 @@ import {
 } from "@/infrastructure/integrations/trello";
 import { verifySubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
-function redirectError(request: Request, code: string) {
-  return NextResponse.redirect(
-    new URL(`/integracoes/trello?error=${encodeURIComponent(code)}`, request.url),
+function redirectError(code: string) {
+  return redirectToSameOriginPath(
+    `/integracoes/trello?error=${encodeURIComponent(code)}`,
   );
 }
 
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     stateBoundToSubject = false;
   }
 
-  if (error) return redirectError(request, error);
+  if (error) return redirectError(error);
   if (
     !code ||
     !state ||
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     !verifier ||
     !stateBoundToSubject
   ) {
-    return redirectError(request, "invalid_state");
+    return redirectError("invalid_state");
   }
 
   try {
@@ -81,15 +81,12 @@ export async function GET(request: Request) {
       },
     );
 
-    return NextResponse.redirect(
-      new URL(
-        `/integracoes/trello?connected=1&name=${encodeURIComponent(
-          verification.user.fullName ?? verification.user.username ?? "Trello",
-        )}`,
-        request.url,
-      ),
+    return redirectToSameOriginPath(
+      `/integracoes/trello?connected=1&name=${encodeURIComponent(
+        verification.user.fullName ?? verification.user.username ?? "Trello",
+      )}`,
     );
   } catch {
-    return redirectError(request, "authorization_failed");
+    return redirectError("authorization_failed");
   }
 }

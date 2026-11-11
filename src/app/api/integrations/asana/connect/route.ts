@@ -10,6 +10,7 @@ import {
 } from "@/infrastructure/integrations/asana";
 import { createSubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,6 @@ export async function GET(request: Request) {
       state, codeChallenge: challenge, requestUrl: request.url,
     }));
   } catch {
-    return NextResponse.redirect(new URL("/integracoes/asana?error=not_configured", request.url));
+    return redirectToSameOriginPath("/integracoes/asana?error=not_configured");
   }
 }

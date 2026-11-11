@@ -8,6 +8,7 @@ import {
 } from "@/infrastructure/integrations/notion";
 import { createSubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +34,6 @@ export async function GET(request: Request) {
       }),
     );
   } catch {
-    return NextResponse.redirect(
-      new URL("/integracoes/notion?error=not_configured", request.url),
-    );
+    return redirectToSameOriginPath("/integracoes/notion?error=not_configured");
   }
 }

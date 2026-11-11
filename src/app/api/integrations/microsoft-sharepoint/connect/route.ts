@@ -11,6 +11,7 @@ import {
 } from "@/infrastructure/integrations/microsoft-sharepoint";
 import { createSubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
@@ -49,8 +50,8 @@ export async function GET(request: Request) {
       }),
     );
   } catch {
-    return NextResponse.redirect(
-      new URL("/integracoes?error=microsoft_sharepoint_not_configured", request.url),
+    return redirectToSameOriginPath(
+      "/integracoes?error=microsoft_sharepoint_not_configured",
     );
   }
 }

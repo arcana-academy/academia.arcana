@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
 
 import {
   encryptMicrosoftSharePointCredentials,
@@ -12,6 +11,7 @@ import {
 } from "@/infrastructure/integrations/microsoft-sharepoint";
 import { verifySubjectBoundOAuthState } from "@/infrastructure/integrations/oauth-transaction-state";
 import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user";
+import { redirectToSameOriginPath } from "@/lib/http/same-origin-redirect";
 
 export const dynamic = "force-dynamic";
 
@@ -52,8 +52,8 @@ export async function GET(request: Request) {
     !verifier ||
     !stateBoundToSubject
   ) {
-    return NextResponse.redirect(
-      new URL("/integracoes?error=microsoft_sharepoint_authorization_failed", request.url),
+    return redirectToSameOriginPath(
+      "/integracoes?error=microsoft_sharepoint_authorization_failed",
     );
   }
 
@@ -79,12 +79,12 @@ export async function GET(request: Request) {
       },
     );
 
-    return NextResponse.redirect(
-      new URL("/integracoes?microsoft_sharepoint=connected", request.url),
+    return redirectToSameOriginPath(
+      "/integracoes?microsoft_sharepoint=connected",
     );
   } catch {
-    return NextResponse.redirect(
-      new URL("/integracoes?error=microsoft_sharepoint_exchange_failed", request.url),
+    return redirectToSameOriginPath(
+      "/integracoes?error=microsoft_sharepoint_exchange_failed",
     );
   }
 }
