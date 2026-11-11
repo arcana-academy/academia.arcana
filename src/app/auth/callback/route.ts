@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import {
+  isPermittedPersonalSubject,
+  isPersonalModeEnabled,
+} from "@/lib/security/personal-access";
 
 function safeNextPath(value: string | null, origin: string): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
@@ -38,6 +42,25 @@ export async function GET(request: Request) {
     return NextResponse.redirect(
       new URL("/login?error=auth", requestUrl.origin),
     );
+  }
+
+  // This callback deliberately remains public for password recovery. Reject a
+  // foreign session immediately, rather than persisting it until a later page
+  // or API request is checked by the proxy.
+  if (isPersonalModeEnabled()) {
+    const { data, error: claimsError } = await supabase.auth.getClaims();
+    if (claimsError || !isPermittedPersonalSubject(data?.claims?.sub)) {
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) {
+        return NextResponse.json(
+          { error: "Não foi possível encerrar a sessão não autorizada." },
+          { status: 503, headers: { "Cache-Control": "no-store" } },
+        );
+      }
+      return NextResponse.redirect(
+        new URL("/login?error=auth", requestUrl.origin),
+      );
+    }
   }
 
   return NextResponse.redirect(new URL(next, requestUrl.origin));

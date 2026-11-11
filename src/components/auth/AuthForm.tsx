@@ -11,6 +11,7 @@ type AuthMode = "login" | "signup" | "recover" | "update-password";
 
 type AuthFormProps = {
   mode: AuthMode;
+  showSignUpLink?: boolean;
 };
 
 const COPY: Record<AuthMode, { title: string; submit: string }> = {
@@ -34,7 +35,7 @@ const MIN_PASSWORD_LENGTH = 8;
 const PASSWORD_TOO_SHORT_ERROR =
   "A senha precisa ter pelo menos 8 caracteres.";
 
-export function AuthForm({ mode }: AuthFormProps) {
+export function AuthForm({ mode, showSignUpLink = true }: AuthFormProps) {
   const router = useRouter();
   const emailId = useId();
   const passwordId = useId();
@@ -258,8 +259,12 @@ export function AuthForm({ mode }: AuthFormProps) {
       {mode === "login" ? (
         <nav className="aa-auth-secondary-links" aria-label="Opções de acesso">
           <Link href="/recuperar-senha">Esqueci minha senha</Link>
-          <span aria-hidden="true">·</span>
-          <Link href="/cadastro">Criar conta</Link>
+          {showSignUpLink ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <Link href="/cadastro">Criar conta</Link>
+            </>
+          ) : null}
         </nav>
       ) : null}
       {mode === "signup" ? (

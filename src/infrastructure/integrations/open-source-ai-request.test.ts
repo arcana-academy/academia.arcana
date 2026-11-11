@@ -24,6 +24,9 @@ describe("open-source AI request security boundaries", () => {
 
   it.each([
     { ...validRequest, provider: "https://attacker.example" },
+    { ...validRequest, provider: "langchain" },
+    { ...validRequest, provider: "weaviate" },
+    { ...validRequest, provider: "bentoml" },
     { ...validRequest, model: "  " },
     { ...validRequest, messages: [{ role: "developer", content: "x" }] },
     { ...validRequest, messages: [{ role: "user", content: "x".repeat(12_001) }] },

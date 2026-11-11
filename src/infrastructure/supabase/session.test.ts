@@ -45,6 +45,7 @@ vi.mock("next/server", async () => {
     cookies = new MockCookies();
     headers = new MockHeaders();
     redirectUrl: URL | null = null;
+    status = 200;
 
     static next() {
       return new MockResponse();
@@ -54,6 +55,15 @@ vi.mock("next/server", async () => {
       const response = new MockResponse();
       response.redirectUrl = url;
       response.headers.set("Location", url.toString());
+      return response;
+    }
+
+    static json(_body: unknown, options: { status: number; headers?: Record<string, string> }) {
+      const response = new MockResponse();
+      response.status = options.status;
+      for (const [name, value] of Object.entries(options.headers ?? {})) {
+        response.headers.set(name, value);
+      }
       return response;
     }
   }
@@ -232,6 +242,59 @@ describe("updateSupabaseSession", () => {
       (response as unknown as { redirectUrl: URL | null }).redirectUrl,
     ).toBeNull();
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("allows the configured owner access to personal routes", async () => {
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { sub: "2b4813a6-2aa8-4129-a904-0b180356ce12" } },
+      error: null,
+    });
+
+    const response = await updateSupabaseSession(request, undefined, {
+      requireSession: true,
+      personalOwnerSubjectId: "2b4813a6-2aa8-4129-a904-0b180356ce12",
+    });
+
+    expect((response as unknown as { redirectUrl: URL | null }).redirectUrl).toBeNull();
+  });
+
+  it("rejects another existing user on personal pages", async () => {
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { sub: "46b832bf-3ebd-4ae8-9395-459a78280b3d" } },
+      error: null,
+    });
+
+    const response = await updateSupabaseSession(request, undefined, {
+      requireSession: true,
+      personalOwnerSubjectId: "2b4813a6-2aa8-4129-a904-0b180356ce12",
+    });
+
+    expect((response as unknown as { redirectUrl: URL | null }).redirectUrl?.pathname)
+      .toBe("/login");
+  });
+
+  it("rejects another authenticated identity on personal APIs with 403", async () => {
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { sub: "46b832bf-3ebd-4ae8-9395-459a78280b3d" } },
+      error: null,
+    });
+
+    const response = await updateSupabaseSession(request, undefined, {
+      requireSession: true,
+      personalOwnerSubjectId: "2b4813a6-2aa8-4129-a904-0b180356ce12",
+      isApiRequest: true,
+    });
+    expect((response as unknown as { status: number }).status).toBe(403);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("returns 401 for anonymous API calls in personal mode", async () => {
+    const response = await updateSupabaseSession(request, undefined, {
+      requireSession: true,
+      personalOwnerSubjectId: "2b4813a6-2aa8-4129-a904-0b180356ce12",
+      isApiRequest: true,
+    });
+    expect((response as unknown as { status: number }).status).toBe(401);
   });
 
   it("treats an answered claims call without a subject as anonymous", async () => {

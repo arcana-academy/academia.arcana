@@ -12,6 +12,10 @@ export type SessionUpdateOptions = {
    * guard can run.
    */
   readonly requireSession?: boolean;
+  /** Verified Supabase Auth subject of the only permitted user in personal mode. */
+  readonly personalOwnerSubjectId?: string;
+  /** Return an API status instead of an HTML redirect when access is denied. */
+  readonly isApiRequest?: boolean;
 };
 
 export async function updateSupabaseSession(
@@ -47,7 +51,18 @@ export async function updateSupabaseSession(
 
   const { data, error } = await supabase.auth.getClaims();
 
-  if (options.requireSession && (error || !data?.claims?.sub)) {
+  const subjectId = error ? null : data?.claims?.sub;
+  const notAuthorized =
+    !!options.personalOwnerSubjectId &&
+    subjectId?.toLowerCase() !== options.personalOwnerSubjectId;
+
+  if (options.requireSession && (!subjectId || notAuthorized)) {
+    if (options.isApiRequest) {
+      return NextResponse.json(
+        { error: "Acesso não autorizado." },
+        { status: subjectId ? 403 : 401, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     // A failed or missing claim check is treated as "not authenticated": the
     // redirect never depends on the reason, so an unavailable Auth service
     // cannot be used to reach a gated page.

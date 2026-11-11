@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   updateSession: vi.fn(
@@ -13,10 +13,17 @@ const mocks = vi.hoisted(() => ({
   next: vi.fn((_options?: { request?: { headers?: Headers } }) => ({
     headers: new Headers(),
   })),
+  json: vi.fn((_body: object, options: { status: number; headers?: HeadersInit }) => ({
+    status: options.status,
+    headers: new Headers(options.headers),
+  })),
+  redirect: vi.fn((url: URL) => ({
+    headers: new Headers({ Location: url.toString() }),
+  })),
 }));
 
 vi.mock("next/server", () => ({
-  NextResponse: { next: mocks.next },
+  NextResponse: { next: mocks.next, json: mocks.json, redirect: mocks.redirect },
 }));
 vi.mock("@/lib/supabase/proxy", () => ({
   updateSession: mocks.updateSession,
@@ -28,14 +35,76 @@ const request = (pathname: string) => ({
   method: "GET",
   headers: new Headers({ "x-request-id": "synthetic" }),
   nextUrl: { pathname, origin: "https://app.example" },
+  url: `https://app.example${pathname}`,
 }) as Parameters<typeof proxy>[0];
 
 describe("proxy liveness isolation", () => {
+  afterEach(() => vi.unstubAllEnvs());
   beforeEach(() => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "");
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_OWNER_ID", "");
     vi.clearAllMocks();
     mocks.updateSession.mockImplementation(async () => ({
       headers: new Headers(),
     }));
+  });
+
+  it("keeps liveness available when the personal owner is not configured", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    await proxy(request("/api/health"));
+    expect(mocks.next).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed without a configured owner in personal mode", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    const response = await proxy(request("/santuario"));
+    expect(response.status).toBe(503);
+    expect(mocks.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("gates public entry and API requests for the single owner in personal mode", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    vi.stubEnv(
+      "ACADEMIA_ARCANA_PERSONAL_OWNER_ID",
+      "2b4813a6-2aa8-4129-a904-0b180356ce12",
+    );
+    await proxy(request("/"));
+    await proxy(request("/api/ia-aberta"));
+    expect(mocks.updateSession.mock.calls.map(call => call[2])).toEqual([
+      { requireSession: true, personalOwnerSubjectId: "2b4813a6-2aa8-4129-a904-0b180356ce12", isApiRequest: false },
+      { requireSession: true, personalOwnerSubjectId: "2b4813a6-2aa8-4129-a904-0b180356ce12", isApiRequest: true },
+    ]);
+  });
+
+  it("allows robots.txt even with an absent personal owner and sends no-index", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    const response = await proxy(request("/robots.txt"));
+    expect(mocks.next).toHaveBeenCalledTimes(1);
+    expect(mocks.updateSession).not.toHaveBeenCalled();
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
+  });
+
+  it("sets no-index on sign-in and restricted app pages without changing public mode", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_OWNER_ID", "2b4813a6-2aa8-4129-a904-0b180356ce12");
+    const login = await proxy(request("/login"));
+    const sanctuary = await proxy(request("/santuario"));
+    expect(login.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
+    expect(sanctuary.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "");
+    const regular = await proxy(request("/login"));
+    expect(regular.headers.get("X-Robots-Tag")).toBeNull();
+  });
+
+  it("redirects the public signup route to login in personal mode", async () => {
+    vi.stubEnv("ACADEMIA_ARCANA_PERSONAL_MODE", "true");
+    vi.stubEnv(
+      "ACADEMIA_ARCANA_PERSONAL_OWNER_ID",
+      "2b4813a6-2aa8-4129-a904-0b180356ce12",
+    );
+    const response = await proxy(request("/cadastro"));
+    expect(response.headers.get("Location")).toBe("https://app.example/login");
+    expect(mocks.updateSession).not.toHaveBeenCalled();
   });
 
   it("bypasses Supabase session checks only for exact /api/health", async () => {

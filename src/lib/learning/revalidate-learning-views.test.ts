@@ -31,6 +31,12 @@ describe("learning journey route refresh contract", () => {
     },
   );
 
+  it("refreshes the Grimórios library after a hierarchy write", () => {
+    revalidateLearningViews("learning-hierarchy-changed");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/grimorios");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/workspace");
+  });
+
   it("refreshes the mission view only for a persisted task completion", () => {
     revalidateLearningViews("study-task-created");
     expect(mocks.revalidatePath).not.toHaveBeenCalledWith("/missoes");

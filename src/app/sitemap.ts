@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { isPersonalModeEnabled } from "@/lib/security/personal-access";
 
 import {
   listIndexableRoutes,
@@ -14,6 +15,9 @@ export const dynamic = "force-dynamic";
 
 /** Public, crawlable routes only; authenticated surfaces never appear here. */
 export default function sitemap(): MetadataRoute.Sitemap {
+  // The personal site deliberately has no public routes to advertise.
+  if (isPersonalModeEnabled()) return [];
+
   const siteUrl = resolveSiteUrl();
 
   return listIndexableRoutes().map((route) => ({

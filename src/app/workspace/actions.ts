@@ -158,7 +158,7 @@ export async function createWorkspaceChapter(
       : Math.max(...existingChapters.map((chapter) => chapter.position)) + 1;
   const now = new Date().toISOString();
 
-  return repository.create({
+  const created = await repository.create({
     id: globalThis.crypto.randomUUID(),
     notebookId: input.notebookId,
     title,
@@ -166,6 +166,8 @@ export async function createWorkspaceChapter(
     createdAt: now,
     updatedAt: now,
   });
+  revalidateLearningViews("learning-hierarchy-changed");
+  return created;
 }
 
 
@@ -192,7 +194,7 @@ export async function createWorkspaceNotebook(
       : Math.max(...existingNotebooks.map((notebook) => notebook.position)) + 1;
   const now = new Date().toISOString();
 
-  return repository.create({
+  const created = await repository.create({
     id: globalThis.crypto.randomUUID(),
     grimoireId: input.grimoireId,
     title,
@@ -200,6 +202,8 @@ export async function createWorkspaceNotebook(
     createdAt: now,
     updatedAt: now,
   });
+  revalidateLearningViews("learning-hierarchy-changed");
+  return created;
 }
 
 
@@ -221,13 +225,15 @@ export async function createWorkspaceGrimoire(
 
   const now = new Date().toISOString();
 
-  return repository.create({
+  const created = await repository.create({
     id: globalThis.crypto.randomUUID(),
     ownerId: claims.sub,
     title,
     createdAt: now,
     updatedAt: now,
   });
+  revalidateLearningViews("learning-hierarchy-changed");
+  return created;
 }
 
 /** Persist the authenticated learning progress for one page. */
@@ -268,6 +274,10 @@ export async function moveWorkspacePage(
     throw new Error("Página não encontrada.");
   }
 
+  if (result.swappedPage) {
+    revalidateLearningViews("learning-hierarchy-changed");
+  }
+
   return result;
 }
 
@@ -288,10 +298,12 @@ export async function renameWorkspaceGrimoire(
     throw new Error("O título do grimório é obrigatório.");
   }
 
-  return repository.update(input.id, {
+  const updated = await repository.update(input.id, {
     title,
     updatedAt: new Date().toISOString(),
   });
+  revalidateLearningViews("learning-hierarchy-changed");
+  return updated;
 }
 
 /** Rename an authenticated Workspace notebook. */
@@ -310,10 +322,12 @@ export async function renameWorkspaceNotebook(
     throw new Error("O título do caderno é obrigatório.");
   }
 
-  return repository.update(input.id, {
+  const updated = await repository.update(input.id, {
     title,
     updatedAt: new Date().toISOString(),
   });
+  revalidateLearningViews("learning-hierarchy-changed");
+  return updated;
 }
 
 /** Rename an authenticated Workspace chapter. */
@@ -332,8 +346,10 @@ export async function renameWorkspaceChapter(
     throw new Error("O título do capítulo é obrigatório.");
   }
 
-  return repository.update(input.id, {
+  const updated = await repository.update(input.id, {
     title,
     updatedAt: new Date().toISOString(),
   });
+  revalidateLearningViews("learning-hierarchy-changed");
+  return updated;
 }

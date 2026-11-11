@@ -132,6 +132,15 @@ describe("POST /api/agent/mestre-arcano", () => {
     expect(mocks.executeMestreArcano).not.toHaveBeenCalled();
   });
 
+  it("rejects an oversized JSON body even when the input text is short", async () => {
+    const response = await POST(post({ input: "Olá", padding: "x".repeat(256 * 1024) }));
+
+    expect(response.status).toBe(413);
+    expect(mocks.consume).not.toHaveBeenCalled();
+    expect(mocks.executeMestreArcano).not.toHaveBeenCalled();
+    expect(mocks.toolContext).not.toHaveBeenCalled();
+  });
+
   it("does not consume the quota for malformed JSON", async () => {
     const response = await POST(
       new Request("https://example.test/api/agent/mestre-arcano", {

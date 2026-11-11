@@ -18,6 +18,35 @@ const ignoredFilePattern = /\.test\.[^.]+$/;
 
 // The `@/*` alias maps to `src/*` in both tsconfig.json and vitest.config.ts.
 const aliasPrefix = "@/";
+const infrastructureRoot = resolve(srcRoot, "infrastructure");
+const applicationRoot = resolve(srcRoot, "application");
+const reactProvidersRoot = resolve(applicationRoot, "providers");
+const supabaseClientRoot = resolve(srcRoot, "lib", "supabase");
+
+function isInside(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}${sep}`);
+}
+
+// React providers are application composition, not business use cases.
+// Next routes and Server Actions live under src/app and are not scanned here.
+function isProtectedSource(file: string): boolean {
+  return domainRoots.some((root) => isInside(file, root)) ||
+    (isInside(file, applicationRoot) && !isInside(file, reactProvidersRoot));
+}
+
+function forbiddenConcreteImports(file: string, source: string): string[] {
+  if (!isProtectedSource(file)) return [];
+
+  return importSpecifiers(source).filter((specifier) => {
+    if (/^@supabase(?:\/|$)/.test(specifier)) return true;
+    if (!specifier.startsWith(".") && !specifier.startsWith(aliasPrefix)) return false;
+
+    const target = specifier.startsWith(".")
+      ? resolve(dirname(file), specifier)
+      : resolve(srcRoot, specifier.slice(aliasPrefix.length));
+    return isInside(target, infrastructureRoot) || isInside(target, supabaseClientRoot);
+  });
+}
 
 function collectSourceFiles(root: string): string[] {
   if (!existsSync(root)) return [];
@@ -186,6 +215,40 @@ describe("architecture import boundaries", () => {
     );
   });
 
+  it("catches forbidden alias, relative, re-export, dynamic and SDK dependencies", () => {
+    const domainFile = resolve(srcRoot, "domains/learning/contracts.ts");
+    const useCaseFile = resolve(srcRoot, "application/education/use-case.ts");
+    const source = [
+      'import { adapter } from "@/infrastructure/supabase/server";',
+      'export * from "../../infrastructure/supabase/server";',
+      'const sdk = import("@supabase/supabase-js");',
+      'export { client } from "@/lib/supabase/server";',
+    ].join("\n");
+
+    expect(forbiddenConcreteImports(domainFile, source).sort()).toEqual([
+      "@/infrastructure/supabase/server",
+      "../../infrastructure/supabase/server",
+      "@supabase/supabase-js",
+      "@/lib/supabase/server",
+    ].sort());
+    expect(forbiddenConcreteImports(useCaseFile, 'import "@/infrastructure/openai/mestre-arcano";'))
+      .toEqual(["@/infrastructure/openai/mestre-arcano"]);
+    expect(forbiddenConcreteImports(resolve(srcRoot, "core/context/example.ts"),
+      'const client = import("@supabase/ssr");')).toEqual(["@supabase/ssr"]);
+  });
+
+  it("allows React providers and route/Server Action composition without exempting use cases", () => {
+    const concrete = 'import { client } from "@/infrastructure/supabase/server";';
+    expect(forbiddenConcreteImports(resolve(srcRoot, "application/providers/ApplicationProviders.tsx"), concrete))
+      .toEqual([]);
+    expect(forbiddenConcreteImports(resolve(srcRoot, "app/api/feedback/route.ts"), concrete))
+      .toEqual([]);
+    expect(forbiddenConcreteImports(resolve(srcRoot, "app/foco/actions.ts"), concrete))
+      .toEqual([]);
+    expect(forbiddenConcreteImports(resolve(srcRoot, "application/education/p1.ts"), concrete))
+      .toEqual(["@/infrastructure/supabase/server"]);
+  });
+
   it("builds dependency edges from real alias imports", () => {
     // Fails if alias resolution regresses: IdentityResolver imports @/core/identity.
     const resolver = resolve(srcRoot, "application/identity/IdentityResolver.ts");
@@ -216,6 +279,17 @@ describe("architecture import boundaries", () => {
       }
     }
 
+    expect(violations).toEqual([]);
+  });
+
+  it("blocks concrete infrastructure and Supabase SDK imports throughout protected layers", () => {
+    const violations: string[] = [];
+    for (const file of graphFiles.filter(isProtectedSource)) {
+      const relativeFile = relative(process.cwd(), file);
+      for (const specifier of forbiddenConcreteImports(file, readFileSync(file, "utf8"))) {
+        violations.push(`${relativeFile} -> ${specifier}`);
+      }
+    }
     expect(violations).toEqual([]);
   });
 

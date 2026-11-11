@@ -465,6 +465,76 @@ describe("WorkspaceShell", () => {
     );
   });
 
+  test("recovers an authorized page URL after a stale server-action revalidation remount", async () => {
+    const tree = createTree();
+    tree.grimoires[0]!.notebooks![0]!.chapters![0]!.pages = [createdPage];
+    window.history.replaceState({}, "", "/workspace?view=tree&page=p1#current");
+
+    render(
+      <WorkspaceShell
+        tree={tree}
+        initialState={{
+          grimoireId: null,
+          notebookId: null,
+          chapterId: null,
+          pageId: null,
+        }}
+        onCreateGrimoire={vi.fn(() => Promise.resolve(createdGrimoire))}
+        onRenameGrimoire={vi.fn(() => Promise.resolve(createdGrimoire))}
+        onRenameNotebook={vi.fn(() => Promise.resolve(renamedNotebook))}
+        onRenameChapter={vi.fn(() => Promise.resolve(createdChapter))}
+        onCreateNotebook={vi.fn(() => Promise.resolve(createdNotebook))}
+        onCreateChapter={vi.fn(() => Promise.resolve(createdChapter))}
+        onCreatePage={vi.fn(() => Promise.resolve(createdPage))}
+        onMovePage={vi.fn(() =>
+          Promise.resolve({ movedPage: createdPage, swappedPage: null }),
+        )}
+        onDeletePage={vi.fn(() => Promise.resolve())}
+        onSavePage={vi.fn(() => Promise.resolve(createdPage))}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(window.location.pathname + window.location.search + window.location.hash)
+        .toBe("/workspace?view=tree&page=p1#current"),
+    );
+    expect(screen.getByRole("article", { name: "Editor da página" })).toBeInTheDocument();
+  });
+
+  test("does not select a page requested by URL unless present in the authorized hierarchy", async () => {
+    window.history.replaceState({}, "", "/workspace?view=tree&page=foreign#current");
+
+    render(
+      <WorkspaceShell
+        tree={createTree()}
+        initialState={{
+          grimoireId: null,
+          notebookId: null,
+          chapterId: null,
+          pageId: null,
+        }}
+        onCreateGrimoire={vi.fn(() => Promise.resolve(createdGrimoire))}
+        onRenameGrimoire={vi.fn(() => Promise.resolve(createdGrimoire))}
+        onRenameNotebook={vi.fn(() => Promise.resolve(renamedNotebook))}
+        onRenameChapter={vi.fn(() => Promise.resolve(createdChapter))}
+        onCreateNotebook={vi.fn(() => Promise.resolve(createdNotebook))}
+        onCreateChapter={vi.fn(() => Promise.resolve(createdChapter))}
+        onCreatePage={vi.fn(() => Promise.resolve(createdPage))}
+        onMovePage={vi.fn(() =>
+          Promise.resolve({ movedPage: createdPage, swappedPage: null }),
+        )}
+        onDeletePage={vi.fn(() => Promise.resolve())}
+        onSavePage={vi.fn(() => Promise.resolve(createdPage))}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(window.location.pathname + window.location.search + window.location.hash)
+        .toBe("/workspace?view=tree#current"),
+    );
+    expect(screen.queryByRole("article", { name: "Editor da página" })).not.toBeInTheDocument();
+  });
+
   test("canonicalizes a normalized initial selection without creating a new history entry", async () => {
     window.history.replaceState(
       { preserved: true },

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { isPersonalModeEnabled } from "@/lib/security/personal-access";
 
 import {
   NON_CRAWLABLE_PREFIXES,
@@ -14,6 +15,10 @@ import {
 export const dynamic = "force-dynamic";
 
 export default function robots(): MetadataRoute.Robots {
+  if (isPersonalModeEnabled()) {
+    return { rules: [{ userAgent: "*", disallow: "/" }] };
+  }
+
   const siteUrl = resolveSiteUrl();
 
   return {
