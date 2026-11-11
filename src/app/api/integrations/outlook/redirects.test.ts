@@ -1,12 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocked = vi.hoisted(() => ({
+  cookies: vi.fn(),
   requireAuthenticatedUser: vi.fn(),
   createOutlookAuthorizationUrl: vi.fn(),
   clearOutlookAuthorizationTransaction: vi.fn(),
   redeemOutlookAuthorizationCode: vi.fn(),
   clearOutlookTokens: vi.fn(),
   clearLegacyOutlookTokenCookies: vi.fn(),
+}));
+
+vi.mock("next/headers", () => ({
+  cookies: mocked.cookies,
 }));
 
 vi.mock("@/lib/auth/require-authenticated-user", () => ({
@@ -25,6 +30,8 @@ vi.mock("@/infrastructure/integrations/outlook-calendar-session", () => ({
   clearLegacyOutlookTokenCookies: mocked.clearLegacyOutlookTokenCookies,
 }));
 
+import { OutlookCalendarError } from "@/infrastructure/integrations/outlook-calendar";
+
 import { GET as authorize } from "./authorize/route";
 import { GET as callback } from "./callback/route";
 import { POST as disconnect } from "./disconnect/route";
@@ -35,6 +42,23 @@ const PROVIDER_AUTHORIZATION_URL =
 /** What a route handler sees in `request.url` behind the hosting proxy. */
 const INTERNAL_ORIGIN = "https://localhost:10000";
 const CALLBACK_PATH = "/api/integrations/outlook/callback";
+const OAUTH_MODULE = "@/infrastructure/integrations/outlook-calendar-oauth";
+const PROVIDER_CONFIGURATION = [
+  "MICROSOFT_ENTRA_CLIENT_ID",
+  "MICROSOFT_ENTRA_CLIENT_SECRET",
+  "MICROSOFT_ENTRA_REDIRECT_URI",
+] as const;
+
+/** Reads the `Location` header, failing the test when there is none. */
+function locationOf(response: Response): string {
+  const location = response.headers.get("location");
+
+  if (location === null) {
+    throw new Error("Expected the response to carry a Location header.");
+  }
+
+  return location;
+}
 
 function expectApplicationRedirect(
   response: Response,
@@ -53,7 +77,13 @@ describe("Outlook integration redirects", () => {
     mocked.createOutlookAuthorizationUrl.mockResolvedValue(
       PROVIDER_AUTHORIZATION_URL,
     );
-    mocked.redeemOutlookAuthorizationCode.mockResolvedValue(undefined);
+    mocked.redeemOutlookAuthorizationCode.mockImplementation(() =>
+      Promise.resolve(),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe("GET /api/integrations/outlook/authorize", () => {
@@ -67,13 +97,41 @@ describe("Outlook integration redirects", () => {
 
     it("returns to the Cronograma instead of failing when the provider is not configured", async () => {
       const canary = "SYNTHETIC_PROVIDER_DIAGNOSTIC_MUST_NOT_LEAK";
-      mocked.createOutlookAuthorizationUrl.mockRejectedValue(new Error(canary));
+      mocked.createOutlookAuthorizationUrl.mockRejectedValue(
+        new OutlookCalendarError(canary),
+      );
 
       const response = await authorize();
 
       expectApplicationRedirect(response, "/cronograma?outlook=error");
       expect(response.headers.get("location")).not.toContain(canary);
       expect(await response.text()).toBe("");
+    });
+
+    it("recognises the failure the provider module raises when it is not configured", async () => {
+      // The real module, so the handler is checked against the error the
+      // application raises and not against an assumption about it.
+      const actual =
+        await vi.importActual<
+          typeof import("@/infrastructure/integrations/outlook-calendar-oauth")
+        >(OAUTH_MODULE);
+      PROVIDER_CONFIGURATION.forEach((name) => vi.stubEnv(name, ""));
+      mocked.createOutlookAuthorizationUrl.mockImplementation(
+        actual.createOutlookAuthorizationUrl,
+      );
+
+      const response = await authorize();
+
+      expectApplicationRedirect(response, "/cronograma?outlook=error");
+      // No authorization transaction is started for an unconfigured provider.
+      expect(mocked.cookies).not.toHaveBeenCalled();
+    });
+
+    it("does not pass an unexpected failure off as a missing configuration", async () => {
+      const unexpected = new Error("synthetic unexpected failure");
+      mocked.createOutlookAuthorizationUrl.mockRejectedValue(unexpected);
+
+      await expect(authorize()).rejects.toBe(unexpected);
     });
 
     it("does not swallow the authentication guard", async () => {
@@ -130,11 +188,11 @@ describe("Outlook integration redirects", () => {
       const response = await callback(
         new Request(`${INTERNAL_ORIGIN}${CALLBACK_PATH}?code=c&state=s`),
       );
-      const location = response.headers.get("location");
+      const location = locationOf(response);
 
       expect(location).not.toContain("localhost");
       expect(
-        new URL(location!, `${publicOrigin}${CALLBACK_PATH}`).toString(),
+        new URL(location, `${publicOrigin}${CALLBACK_PATH}`).toString(),
       ).toBe(`${publicOrigin}/cronograma?outlook=connected`);
     });
   });
