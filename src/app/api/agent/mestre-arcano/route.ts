@@ -16,20 +16,23 @@ import { requireAuthenticatedUser } from "@/lib/auth/require-authenticated-user"
 import { consumeApiRateLimit } from "@/application/security/api-rate-limit";
 import { SupabaseApiRateLimitRepository } from "@/infrastructure/supabase/security/api-rate-limit-repository";
 import { apiRateLimitResponse } from "@/lib/http/api-rate-limit-response";
+import { readBoundedJsonRequest } from "@/lib/http/bounded-json-request";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const claims = await requireAuthenticatedUser();
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+  const parsedBody = await readBoundedJsonRequest(request);
+  if (!parsedBody.ok) {
+    return NextResponse.json(
+      { error: parsedBody.status === 413 ? "Solicitação excede o limite permitido." : "JSON inválido." },
+      { status: parsedBody.status, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   // JSON may be null, an array, or a primitive. Never dereference until validated.
+  const body = parsedBody.value;
   const payload =
     typeof body === "object" && body !== null && !Array.isArray(body)
       ? (body as Record<string, unknown>)

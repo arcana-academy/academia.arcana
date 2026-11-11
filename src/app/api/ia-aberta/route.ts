@@ -5,6 +5,7 @@ import {
 import {
   openSourceAiIntegrations,
   getOpenSourceAiStatus,
+  isOpenSourceAiGatewayEligible,
 } from "@/infrastructure/integrations/open-source-ai";
 import {
   readBoundedJsonRequest,
@@ -42,6 +43,9 @@ export async function GET() {
       capabilities: integration.capabilities,
       runtime: integration.runtime,
       configured: getOpenSourceAiStatus(integration).configured,
+      gatewaySupported: isOpenSourceAiGatewayEligible(integration.id),
+      invocationEligible: isOpenSourceAiGatewayEligible(integration.id) &&
+        getOpenSourceAiStatus(integration).configured,
     })),
   });
 }

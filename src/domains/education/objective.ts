@@ -6,6 +6,8 @@ import type {
 export const NORMALIZED_EXACT_MATCH_CRITERION =
   "A resposta deve corresponder à resposta de referência após normalização de caixa e espaços.";
 
+export const NORMALIZED_EXACT_MATCH_CRITERION_VERSION = "criterion_exact_match_v1";
+
 export type ObjectiveEvaluation = {
   outcome: PracticeOutcome;
   evidenceScore: number;

@@ -100,6 +100,14 @@ jobs:
         id: objective_evidence_rls_tests
         run: supabase test db --db-url "postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres" supabase/tests/database/educational_objective_evidence_p15_rls.test.sql
 
+      - name: Verify P0 versioned objective evidence constraints in disposable local database
+        id: p0_practice_contract_checks
+        run: supabase test db --db-url "postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres" supabase/tests/database/practice_evidence_contract_checks_p0.test.sql
+
+      - name: Verify P0 null guards and self-assessment regression in disposable local database
+        id: p0_objective_null_guards
+        run: supabase test db --db-url "postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres" supabase/tests/database/objective_evidence_null_guard_p0.test.sql
+
       - name: Run durable open-source AI rate-limit tests
         id: ai_rate_limit_tests
         run: |
