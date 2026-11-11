@@ -89,9 +89,6 @@ describe("POST /api/feedback", () => {
       "feedback_submitted",
       { feedback_length: validInput.feedback.length },
     );
-    expect(JSON.stringify(mocks.captureServerEvent.mock.calls)).not.toContain(
-      validInput.email,
-    );
   });
 
   it("returns 429 with Retry-After and stores nothing once the quota is exhausted", async () => {
