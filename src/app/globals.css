@@ -1608,6 +1608,70 @@ p {
   min-height: 3rem;
 }
 
+.aa-mestre-source-comparison {
+  margin-top: 1.35rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid color-mix(in srgb, var(--aa-border-default) 35%, transparent);
+}
+
+.aa-mestre-source-heading h3 {
+  margin: 0;
+}
+
+.aa-mestre-source-heading p {
+  margin: 0.45rem 0 0;
+  color: var(--aa-text-secondary);
+}
+
+.aa-mestre-source-form {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+}
+
+.aa-mestre-source-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.aa-mestre-source-field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.aa-mestre-source-field label {
+  color: var(--aa-text-primary);
+  font-weight: 600;
+}
+
+.aa-mestre-source-required {
+  margin-left: 0.35rem;
+  color: var(--aa-status-warning);
+  font-size: var(--aa-type-scale-xs);
+  font-weight: 650;
+}
+
+.aa-mestre-source-text {
+  min-height: 12rem;
+  padding: 0.75rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.aa-mestre-source-field p,
+.aa-mestre-source-form > .aa-state-copy {
+  margin: 0;
+  color: var(--aa-text-secondary);
+  font-size: var(--aa-type-scale-sm);
+}
+
+.aa-mestre-source-form > .aa-button {
+  justify-self: start;
+  min-height: 3rem;
+}
+
 .aa-mestre-feedback {
   margin-top: 0.8rem;
 }
@@ -1632,6 +1696,14 @@ p {
   }
 
   .aa-mestre-form .aa-button {
+    width: 100%;
+  }
+
+  .aa-mestre-source-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .aa-mestre-source-form > .aa-button {
     width: 100%;
   }
 }
