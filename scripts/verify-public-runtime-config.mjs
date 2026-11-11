@@ -72,6 +72,30 @@ export function validateSupabaseProductionConfiguration(
 }
 
 /**
+ * Explicit release gate for the hCaptcha-protected login/signup/recovery flow.
+ * The public sitekey is a browser identifier. No secret is read or logged.
+ * This flag is opt-in for a protected release; it does not change normal
+ * branch builds or authorize enabling Supabase production CAPTCHA.
+ */
+export function verifyHCaptchaReleaseConfiguration(environment = process.env) {
+  if (environment.ACADEMIA_ARCANA_REQUIRE_HCAPTCHA !== "1") {
+    return { required: false };
+  }
+
+  const sitekey = environment.NEXT_PUBLIC_HCAPTCHA_SITEKEY?.trim() ?? "";
+  const format = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+  const publicTestSitekey = "10000000-ffff-ffff-ffff-000000000001";
+
+  if (!format.test(sitekey) || sitekey.toLowerCase() === publicTestSitekey) {
+    throw new Error(
+      "hCaptcha release preflight failed: configure a non-test public sitekey before building.",
+    );
+  }
+
+  return { required: true };
+}
+
+/**
  * Resolves the deployment label that is safe to print to stdout.
  *
  * The raw environment may contain secrets, so no value taken from it may
@@ -111,6 +135,8 @@ export function verifyPublicRuntimeConfig(environment = loadBuildEnvironment()) 
     environment.NEXT_PUBLIC_SUPABASE_URL,
     environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   );
+
+  verifyHCaptchaReleaseConfiguration(environment);
 
   return {
     integration: "supabase-public-runtime",

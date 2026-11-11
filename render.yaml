@@ -28,6 +28,13 @@ services:
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
         sync: false
+      # Safe rollout: release build must fail if no non-test public sitekey is configured.
+      # No production Auth setting is modified by this flag.
+      - key: ACADEMIA_ARCANA_REQUIRE_HCAPTCHA
+        value: "1"
+      # Public sitekey only: never include HCAPTCHA_SECRET in blueprint or build.
+      - key: NEXT_PUBLIC_HCAPTCHA_SITEKEY
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_AGENT_MODEL

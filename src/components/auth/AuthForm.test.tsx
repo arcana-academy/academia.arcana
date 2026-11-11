@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthForm } from "./AuthForm";
 
@@ -25,7 +25,47 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh }),
 }));
 
+
+function enableSyntheticCaptcha() {
+  vi.stubEnv("NEXT_PUBLIC_HCAPTCHA_SITEKEY", "test-public-sitekey");
+  let callbacks:
+    | {
+        callback: (token: string) => void;
+        "expired-callback": () => void;
+        "error-callback": () => void;
+      }
+    | undefined;
+  const reset = vi.fn();
+  const renderWidget = vi.fn(
+    (
+      _element: HTMLElement,
+      settings: {
+        callback: (token: string) => void;
+        "expired-callback": () => void;
+        "error-callback": () => void;
+      },
+    ) => {
+      callbacks = settings;
+      return 7;
+    },
+  );
+  vi.stubGlobal("hcaptcha", { render: renderWidget, reset });
+
+  return {
+    renderWidget,
+    reset,
+    callbacks: () => {
+      if (!callbacks) throw new Error("hCaptcha widget was not rendered");
+      return callbacks;
+    },
+  };
+}
+
 describe("AuthForm", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
   it("shows approved visual login layout without replacing authentication actions", () => {
     render(<AuthForm mode="login" />);
     expect(screen.getByRole("heading", { name: "Entre no seu santuário de estudos" })).toBeTruthy();
@@ -305,5 +345,97 @@ describe("AuthForm", () => {
 
     expect(signInWithPassword).not.toHaveBeenCalled();
     expect(resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it("requires a verified challenge and sends a single-use token with login", async () => {
+    const captcha = enableSyntheticCaptcha();
+    render(<AuthForm mode="login" />);
+    await waitFor(() => expect(captcha.renderWidget).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "student@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "correct-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(signInWithPassword).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Conclua a verificação de segurança");
+
+    act(() => captcha.callbacks().callback("synthetic-login-token"));
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    await waitFor(() => {
+      expect(signInWithPassword).toHaveBeenCalledWith({
+        email: "student@example.com",
+        password: "correct-password",
+        options: { captchaToken: "synthetic-login-token" },
+      });
+      expect(captcha.reset).toHaveBeenCalledWith(7);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(signInWithPassword).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes the captcha token to signup without changing email confirmation", async () => {
+    const captcha = enableSyntheticCaptcha();
+    render(<AuthForm mode="signup" />);
+    await waitFor(() => expect(captcha.renderWidget).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "student@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "secure-password" } });
+    fireEvent.change(screen.getByLabelText("Confirmar senha"), { target: { value: "secure-password" } });
+    act(() => captcha.callbacks().callback("synthetic-signup-token"));
+    fireEvent.click(screen.getByRole("button", { name: "Criar conta" }));
+
+    await waitFor(() => {
+      expect(signUp).toHaveBeenCalledWith(expect.objectContaining({
+        email: "student@example.com",
+        options: expect.objectContaining({
+          captchaToken: "synthetic-signup-token",
+          emailRedirectTo: expect.stringContaining("/auth/callback?next=/"),
+        }),
+      }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Verifique seu email");
+      expect(captcha.reset).toHaveBeenCalledWith(7);
+    });
+  });
+
+  it("passes the captcha token to recovery while preserving non-enumerating messages", async () => {
+    const captcha = enableSyntheticCaptcha();
+    render(<AuthForm mode="recover" />);
+    await waitFor(() => expect(captcha.renderWidget).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "student@example.com" } });
+    act(() => captcha.callbacks().callback("synthetic-recover-token"));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar instruções" }));
+
+    await waitFor(() => {
+      expect(resetPasswordForEmail).toHaveBeenCalledWith("student@example.com",
+        expect.objectContaining({ captchaToken: "synthetic-recover-token" }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Se o endereço estiver cadastrado");
+      expect(captcha.reset).toHaveBeenCalledWith(7);
+    });
+  });
+
+  it("rejects an expired captcha token before contacting Supabase", async () => {
+    const captcha = enableSyntheticCaptcha();
+    render(<AuthForm mode="login" />);
+    await waitFor(() => expect(captcha.renderWidget).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "student@example.com" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "correct-password" } });
+    act(() => {
+      captcha.callbacks().callback("expired-test-token");
+      captcha.callbacks()["expired-callback"]();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("does not add a captcha challenge to the authenticated password update", async () => {
+    enableSyntheticCaptcha();
+    render(<AuthForm mode="update-password" />);
+    expect(screen.queryByText(/verificação de segurança: confirme/i)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "new-password" } });
+    fireEvent.change(screen.getByLabelText("Confirmar senha"), { target: { value: "new-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar senha" }));
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith({ password: "new-password" }));
   });
 });
