@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { createClient } from "@/lib/supabase/client";
+import { CaptchaChallenge, type AuthCaptchaProvider } from "./CaptchaChallenge";
 
 type AuthMode = "login" | "signup" | "recover" | "update-password";
 
@@ -44,6 +45,17 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaGeneration, setCaptchaGeneration] = useState(0);
+
+  const configuredProvider = process.env.NEXT_PUBLIC_AUTH_CAPTCHA_PROVIDER;
+  const captchaProvider: AuthCaptchaProvider | null =
+    configuredProvider === "turnstile" || configuredProvider === "hcaptcha"
+      ? configuredProvider
+      : null;
+  const captchaSiteKey = process.env.NEXT_PUBLIC_AUTH_CAPTCHA_SITE_KEY?.trim() ?? "";
+  const captchaEnabled = Boolean(captchaProvider && captchaSiteKey);
+  const captchaMisconfigured = Boolean(configuredProvider || captchaSiteKey) && !captchaEnabled;
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
@@ -54,12 +66,24 @@ export function AuthForm({ mode }: AuthFormProps) {
     setStatus("loading");
     setMessage("");
 
-    const supabase = createClient();
+    if (mode !== "update-password" && captchaMisconfigured) {
+      setStatus("error");
+      setMessage("A verificação de segurança está indisponível. Tente novamente mais tarde.");
+      return;
+    }
+
+    if (mode !== "update-password" && captchaEnabled && !captchaToken) {
+      setStatus("error");
+      setMessage("Conclua a verificação de segurança antes de continuar.");
+      return;
+    }
 
     try {
+      const supabase = createClient();
       if (mode === "recover") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth/callback?next=/redefinir-senha`,
+          ...(captchaEnabled && captchaToken ? { captchaToken } : {}),
         });
 
         if (error) {
@@ -115,6 +139,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback?next=/`,
+            ...(captchaEnabled && captchaToken ? { captchaToken } : {}),
           },
         });
 
@@ -138,6 +163,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
+        ...(captchaEnabled && captchaToken ? { options: { captchaToken } } : {}),
       });
 
       if (error) {
@@ -147,9 +173,18 @@ export function AuthForm({ mode }: AuthFormProps) {
       setStatus("success");
       router.push("/santuario");
       router.refresh();
-    } catch {
+    } catch (error) {
       setStatus("error");
-      setMessage(GENERIC_AUTH_ERROR);
+      setMessage(
+        (error as { code?: string } | null)?.code === "captcha_failed"
+          ? "Falha na verificação de segurança. Conclua uma nova verificação e tente novamente."
+          : GENERIC_AUTH_ERROR,
+      );
+    } finally {
+      if (mode !== "update-password" && captchaEnabled) {
+        setCaptchaToken(null);
+        setCaptchaGeneration((value) => value + 1);
+      }
     }
   }
 
@@ -244,6 +279,15 @@ export function AuthForm({ mode }: AuthFormProps) {
             />
           </div>
         )}
+
+        {mode !== "update-password" && captchaEnabled && captchaProvider ? (
+          <CaptchaChallenge
+            key={`${mode}-${captchaGeneration}`}
+            provider={captchaProvider}
+            siteKey={captchaSiteKey}
+            onTokenChange={setCaptchaToken}
+          />
+        ) : null}
 
         {message && (
           <p role="alert" aria-live="polite">
