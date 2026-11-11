@@ -247,12 +247,11 @@
 
     const files = [];
     for (const entry of readdirSync(absoluteDir, { withFileTypes: true })) {
-      const relativePath = resolve(relativeDir, entry.name)
-        .replaceAll("\\", "/");
+      const relativePath = `${relativeDir}/${entry.name}`;
 
       if (entry.isDirectory()) {
         files.push(...walkFiles(relativePath));
-      } else if (/\\.(ya?ml|json|yaml)$/i.test(entry.name)) {
+      } else if (/\.(ya?ml|json|yaml)$/i.test(entry.name)) {
         files.push(relativePath);
       }
     }
@@ -341,5 +340,5 @@
   }
 
   process.stdout.write(
-    "Canonical infrastructure contract verified: GitHub + GitHub Actions + Render + Supabase.\\n",
+    "Canonical infrastructure contract verified: GitHub + GitHub Actions + Render + Supabase.\n",
   );
