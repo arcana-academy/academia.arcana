@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getOpenSourceAiIntegration, getOpenSourceAiStatus, openSourceAiIntegrations } from "./open-source-ai";
+import { getOpenSourceAiIntegration, getOpenSourceAiStatus, isOpenSourceAiGatewayEligible, openSourceAiIntegrations } from "./open-source-ai";
 
 describe("open source AI integration catalog", () => {
   it("contains the complete validated provider set", () => {
@@ -7,6 +7,14 @@ describe("open source AI integration catalog", () => {
     expect(getOpenSourceAiIntegration("ollama")?.license).toBe("MIT");
     expect(getOpenSourceAiIntegration("vllm")?.license).toBe("Apache-2.0");
     expect(getOpenSourceAiIntegration("huggingface")?.endpointEnv).toBe("HUGGINGFACE_BASE_URL");
+  });
+
+  it("separates catalog entries from the gateway's declared chat adapter support", () => {
+    expect(isOpenSourceAiGatewayEligible("ollama")).toBe(true);
+    expect(isOpenSourceAiGatewayEligible("vllm")).toBe(true);
+    for (const provider of ["langchain", "weaviate", "huggingface", "bentoml"] as const) {
+      expect(isOpenSourceAiGatewayEligible(provider)).toBe(false);
+    }
   });
 
   it("reports runtime configuration from environment only", () => {

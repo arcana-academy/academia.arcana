@@ -51,6 +51,21 @@ describe("data ownership architecture policy", () => {
     });
   });
 
+  it("keeps educational evidence owned by Education and atomic progress effects cross-domain", () => {
+    for (const name of [
+      "public.record_educational_practice_attempt",
+      "public.record_criterion_referenced_practice_attempt",
+    ]) {
+      const rpc = DATA_OWNERSHIP_POLICY.find((item) => item.resource === name);
+      expect(rpc).toMatchObject({
+        kind: "database-rpc",
+        owner: "cross-domain",
+        supportingDomains: ["education", "learning"],
+      });
+    }
+    expect(DATA_OWNERSHIP_POLICY.find((item) => item.resource === "public.page_progress")?.owner).toBe("learning");
+  });
+
   it("keeps storage infrastructure separate from business ownership", () => {
     const covers = DATA_OWNERSHIP_POLICY.find(
       (item) => item.resource === "storage.grimoire-covers",

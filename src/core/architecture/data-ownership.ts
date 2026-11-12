@@ -97,6 +97,20 @@ export const DATA_OWNERSHIP_POLICY: readonly DataOwnershipPolicy[] = [
     rule: "Trust owns user feedback and governance-facing intake records.",
   },
   {
+    resource: "public.educational_practice_items",
+    kind: "table",
+    owner: "education",
+    supportingDomains: ["learning"],
+    rule: "Education owns practice activities and their criteria; Learning owns learner progression.",
+  },
+  {
+    resource: "public.educational_practice_attempts",
+    kind: "table",
+    owner: "education",
+    supportingDomains: ["learning"],
+    rule: "Education owns educational evidence; Learning owns any progress derived from it.",
+  },
+  {
     resource: "public.integration_credentials",
     kind: "table",
     owner: "infrastructure",
@@ -116,6 +130,20 @@ export const DATA_OWNERSHIP_POLICY: readonly DataOwnershipPolicy[] = [
     owner: "cross-domain",
     supportingDomains: ["planning", "gamification"],
     rule: "Atomic transition coordinates Planning task completion and Gamification reward invariants without transferring ownership.",
+  },
+  {
+    resource: "public.record_educational_practice_attempt",
+    kind: "database-rpc",
+    owner: "cross-domain",
+    supportingDomains: ["education", "learning"],
+    rule: "Atomically records Education evidence and updates Learning page progress for the authenticated owner.",
+  },
+  {
+    resource: "public.record_criterion_referenced_practice_attempt",
+    kind: "database-rpc",
+    owner: "cross-domain",
+    supportingDomains: ["education", "learning"],
+    rule: "Atomically records bounded objective Education evidence and updates Learning page progress.",
   },
   {
     resource: "public.move_workspace_page",

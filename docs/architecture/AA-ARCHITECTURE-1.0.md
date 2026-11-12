@@ -288,8 +288,12 @@ src/core/architecture/data-ownership.test.ts
 | public.integration_credentials | table | infrastructure |
 | public.external_document_sources | table | infrastructure |
 | public.complete_study_task_with_reward | database-rpc | cross-domain |
+| public.record_educational_practice_attempt | database-rpc | cross-domain |
+| public.record_criterion_referenced_practice_attempt | database-rpc | cross-domain |
 | public.move_workspace_page | database-rpc | learning |
 | storage.grimoire-covers | storage-bucket | learning |
+
+The two educational-practice RPCs coordinate `education` (educational evidence) and `learning` (learner progress) without transferring ownership of `public.page_progress` from `learning`.
 
 ### Ownership rules
 
@@ -889,23 +893,27 @@ For architecture-local records this repository uses the **AA-ARCH-XXX** namespac
 
 ### 25.6 CI/CD semantic ordering
 
-The canonical delivery semantics are:
+The required ordering for a future release, **only after separate authorization**, is:
 
 ```text
 commit
   ↓
-GitHub Actions — pre-deploy Quality Gate
+GitHub Actions — pre-release Quality Gate
   ↓
-Render — commit promotion (main only receives gated merges)
+Human / operational release authorization — currently NO-GO
+  ↓ (only if GO is explicitly granted)
+Render — manual deployment (Auto Deploy OFF)
   ↓
 Application runtime
   ↓
 Production Smoke — post-deploy verification
 ```
 
+This diagram specifies order and gates; it does not claim that release approval or deployment has occurred.
+
 Production Smoke is evidence about the deployed runtime; it is not an input to the same Render promotion decision. Any future change that introduces a reverse dependency must be treated as an architecture regression and explicitly reviewed.
 
-> **Implementation note (2026-10-23).** Render's `checksPass` trigger makes every check on the commit an input to the promotion decision, which includes Production Smoke and therefore reverses this ordering. The reverse dependency reproduced on `b808779`: the smoke saw the previous deployment, failed, and Render then withheld the deploy permanently. The Blueprint now uses `autoDeployTrigger: commit`, which is the only trigger that matches the canonical semantics above. See `docs/engineering/2026-10-23-render-promotion-deadlock.md`.
+> **Implementation note (2026-10-23).** Render's `checksPass` trigger makes every check on the commit an input to the promotion decision, which includes Production Smoke and therefore reverses this ordering. The reverse dependency reproduced on `b808779`: the smoke saw the previous deployment, failed, and Render then withheld the deploy permanently. At that historical point, `autoDeployTrigger: commit` was considered to avoid the deadlock; it is **not** the current release policy. The examined `render.yaml` declares `autoDeployTrigger: "off"`, and NO-GO remains in force. Hosted Render settings require independent read-only verification. See `docs/engineering/2026-10-23-render-promotion-deadlock.md`.
 
 
 ## 26. Current canonical state
@@ -942,3 +950,71 @@ CONSOLIDAR
 ```
 
 The architecture remains a living system, but changes must be explicit, traceable and subordinate to the Constitution Master.
+
+
+---
+
+## 27. Implementation reconciliation checkpoint — 2026-10-29 (local proposal; no homologation)
+
+**Base read:** `b4f5eb3cdd345002349e7d9d30f826b4a57e5889` on `work/aa-master360-mvp-isolated-20261026`, initially clean. This section documents a **locally edited, uncommitted candidate**, not the canonical `main` state, a current production SHA, or a deployment approval. No tests, installations, migrations, commits or production actions were performed as part of this checkpoint.
+
+### 27.1 Operational release freeze versus historical promotion semantics
+
+The 2026-10-23 note in §25.6 describes why the earlier `checksPass` trigger caused a promotion/smoke deadlock and why `commit` was considered at that historical point. The examined `render.yaml` instead declares `autoDeployTrigger: "off"` with an explicit release freeze. **The current source contract is manual, Auto Deploy OFF and NO-GO.** The chronological explanation does not authorize re-enabling `commit`, GHCR promotion, or any deployment. Actual hosted settings require separately authorized read-only confirmation; the Blueprint alone cannot prove live service configuration.
+
+### 27.2 Focused architectural reconciliation
+
+| Requirement | Evidence at the base revision | Local candidate adjustment | Validation status |
+|---|---|---|---|
+| Education resource ownership | §8 and §21 describe `educational_practice_items` and `educational_practice_attempts` as Education-owned, but the code registry omitted them | Add the two table entries; leave `page_progress` owned by Learning | Implemented in local code; not tested |
+| Atomic education-to-learning operations | Versioned SQL functions `record_educational_practice_attempt` and `record_criterion_referenced_practice_attempt` record attempts and update page progress | Register cross-domain RPC ownership with Education and Learning as supporting domains | Implemented in local registry; not tested; does not apply SQL |
+| JSON input budgets | `/api/ia-aberta` used a stream-bounded 256 KiB reader; Mestre Arcano used unbounded `request.json()` before its 8,000-character guard | Reuse one shared bounded JSON reader for both while preserving route-specific validation and existing quotas | Local candidate only; runtime unverified |
+| Provider capability versus invocability | AI catalog mixes frameworks, vector stores and chat inference engines; generic gateway calls `/v1/chat/completions` | Explicitly distinguish cataloged products and locally supported chat-completions adapters; require eligibility before calling a provider | Static contract proposed in local code; no external provider tested |
+| Protection of build/runtime | Guard `assert-build-secret-isolation-536.cjs`, runtime secret reader and frozen Render Blueprint are present | Preserve controls and record the release freeze; no image migration or live change | Runtime segregation remains separately gated by #536 |
+| Product and governance boundary | §25.1–25.3 and C17–C19 track unresolved constitutional and institutional decisions | Do not resolve CSS/Tailwind, institution/teacher scope, privacy, or release governance by inference | BLOCKED by relevant authorities |
+
+The scope remains a modular monolith with the 14 approved domains and directional dependencies in §1–5. No new domain, service, table, provider account or migration is implied by this checkpoint.
+
+### 27.3 Isolated local test expectations — not executed
+
+- Architectural ownership assertions: unique owners and two Education-owned practice tables; cross-domain education/progress RPCs; no new cycles or forbidden imports.
+- HTTP request limits: valid JSON succeeds, malformed JSON returns 400, actual stream body above 256 KiB returns 413 before quota or provider use; the existing 8,000-character Mestre Arcano limit remains unchanged.
+- Gateway eligibility: documented catalog-only entries cannot invoke a chat endpoint or consume the IA Aberta quota; supported adapters still require runtime configuration and separate operational validation.
+- Persistence/RLS: reuse existing Supabase educational tests and local C117/P0 work rather than overwriting or repeating already accepted evidence; any needed future execution must be explicitly authorized in an isolated environment.
+- Build/Render: verify the frozen source configuration without attempting deploy, release or secret mutation.
+
+**Closure boundary:** Passing these tests would support the targeted local architecture changes only. It would not constitute MVP acceptance, independent review, protected release approval, the closing of #536/#594/#595/C03/ORG02, or proof of runtime provider availability. The previously published 46.6% architecture index is not reproducible from this record; the completion percentage is **not determinable**.
+
+
+### 27.4 Subsequent targeted local validation — 2026-10-29 (isolated; no release)
+
+This later checkpoint supersedes the **validation status only** of the initial local proposal in §§27.2–27.3. In the isolated checkout at base `b4f5eb3cdd345002349e7d9d30f826b4a57e5889`, the 10 targeted Vitest files completed with **84 passed tests and no assertion failures**: 7 files / 48 tests in the first post-dependency-recovery run, followed by the other 3 files / 36 tests with serialized workers after default parallel worker startup timed out. The initial homologation of the same 10 files had also completed with 84 passed tests before the dependency recovery. A subsequent `tsc --noEmit --incremental false --pretty false` exited 0 with no errors, and `git diff --check` reported no whitespace errors.
+
+The Windows `node_modules` recovery used a local donor checkout with identical `package.json` and `package-lock.json` hashes, after network attempts failed with `ECONNRESET` and `EIDLETIMEOUT`. `npm ls --depth=0 --offline --omit=optional` subsequently listed the expected direct dependencies. No productive migration, remote provider call, merge, image publication, GHCR push, Render deploy, or production configuration mutation was part of this validation. The actual hosted Auto Deploy setting is not proven by `render.yaml` alone.
+
+**Remaining release gates:** Quality Gate on a proposed PR, independent review, build/runtime secret isolation #536, durable OCI backup and custodial approval #594, ratified DEP-C17 authority decisions #595, and C03/ORG02 operational assurance. All remain separate; `DRAFT / NO-GO` must be preserved until their own verifiable acceptance criteria are met. No project-wide E2E, production smoke, or live provider readiness is claimed here.
+
+### 27.5 Approved minimal documentation reconciliation — 2026-10-29
+
+**Local reference:** `work/aa-master360-mvp-isolated-20261026` at `d0c839fe37a1c809585183fd57426877753ca119`; the GitHub reference compared was `b4f5eb3cdd345002349e7d9d30f826b4a57e5889`. The branch/ref and commit identify the inspected checkout, not a new integration or deployment.
+
+Before this documentation edit, `git status --porcelain=v1 --untracked-files=normal` reported no tracked-file changes and two untracked directories: `scripts/security/__pycache__/` and `supabase/.temp/`. Both are preserved. This checkpoint does not authorize removing or overwriting any local material.
+
+The existing local commit already contains the scoped code for shared bounded JSON reading, AI adapter eligibility, and the two educational evidence RPC ownership entries. This document now reconciles the §8 ownership table with those entries and distinguishes the current `autoDeployTrigger: "off"` source contract from historical release discussions in §25.6. No new business invariant, provider, table, migration, auth rule, quota, or API contract is introduced by this documentation change.
+
+**Verification boundary:** This documentation-only update has not run tests, builds, installations, migrations, commits, pushes, merges, deploys, or external mutations. The 84 targeted PASS and TypeScript checks in §27.4 describe a prior, bounded validation cycle; they must not be represented as fresh results or as approval of this documentation revision. The post-edit local Git diff was inspected: only this architecture document changed among tracked files (24 additions, 4 deletions); both untracked directories remain intact. Any automated validation remains a separate, not-yet-authorized step.
+
+**Decision boundary:** The AA-ARCH-001/002 constitutional CSS reconciliation, institutional/teacher DEP-C17 decisions, privacy/retention decisions, #536, #594, #595 and C03/ORG02 remain subject to their respective authorities. **R$ 0 additional expense, Auto Deploy OFF, and protected-release NO-GO remain unchanged.** Architecture documentation closure alone is not product homologation or publication authorization.
+
+### 27.6 Subsequent authorized targeted verification — 2026-10-29 (isolated, no release)
+
+After explicit authorization for targeted validation and integration review, the isolated checkout remained at `d0c839fe37a1c809585183fd57426877753ca119`. No installation, code changes, migration, commit, push, merge, hosted service operation, external provider invocation or deployment occurred.
+
+- **PASS:** `src/core/architecture/data-ownership.test.ts` — 6/6 assertions, Vitest exit code 0.
+- **PASS:** `tests/infrastructure/blueprint-trigger.test.ts` — 7/7 assertions, Vitest exit code 0.
+- **PASS:** `git diff --check` — no whitespace errors. Git emitted only an informational LF/CRLF normalization warning.
+- **Static reconciliation:** §8 ownership resources match the inspected local ownership declarations, including the two Education/Learning cross-domain RPCs. The shared JSON reader enforces 256 KiB of stream bytes, the Mestre Arcano route retains its 8,000-character semantic limit, and the IA Aberta request validator rejects catalog-only providers before quota or invocation. The gateway also checks provider eligibility.
+- **Release-source freeze:** `render.yaml` contains the quoted `autoDeployTrigger: "off"`; the hosted Render settings were not independently queried in this checkpoint.
+- **Workspace preservation:** only `docs/architecture/AA-ARCHITECTURE-1.0.md` was modified among tracked files. The pre-existing untracked `scripts/security/__pycache__/` and `supabase/.temp/` were not touched.
+
+These 13 fresh targeted PASS are **not additive** to the historical 84 PASS as a unique-test total and do not validate Supabase hosted policies, provider uptime, release authority, complete E2E behavior or production Smoke. Existing NO-GO gates (#536, #594, #595, C03/ORG02) and independent human review remain open.

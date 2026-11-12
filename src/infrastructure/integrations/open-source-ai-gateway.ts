@@ -1,6 +1,6 @@
 import type { OpenSourceAiId } from "./open-source-ai";
 import { getRuntimeSecret } from "@/infrastructure/runtime-secrets";
-import { getOpenSourceAiIntegration } from "./open-source-ai";
+import { getOpenSourceAiIntegration, isOpenSourceAiGatewayEligible } from "./open-source-ai";
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 export type GatewayRequest = {
@@ -15,6 +15,8 @@ const PROVIDER_TIMEOUT_MS = 30_000;
 const MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024;
 
 function endpointFor(provider: OpenSourceAiId): string {
+  // Defense in depth: direct gateway callers cannot skip route eligibility.
+  if (!isOpenSourceAiGatewayEligible(provider)) throw new Error("provider_not_eligible");
   const integration = getOpenSourceAiIntegration(provider);
   if (!integration?.endpointEnv) throw new Error("provider_endpoint_not_configured");
   const configuredEndpoint = process.env[integration.endpointEnv];
