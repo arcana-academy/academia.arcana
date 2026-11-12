@@ -47,8 +47,8 @@ describe("friend connection actions", () => {
     vi.clearAllMocks();
     mocks.requireAuthenticatedUser.mockResolvedValue({ sub: "user-1" });
     mocks.createClient.mockResolvedValue({ client: true });
-    mocks.updateConnectionStatus.mockResolvedValue(undefined);
-    mocks.deleteConnection.mockResolvedValue(undefined);
+    mocks.updateConnectionStatus.mockImplementation(async () => undefined);
+    mocks.deleteConnection.mockImplementation(async () => undefined);
   });
 
   it("accepts a pending request as the authenticated recipient", async () => {
