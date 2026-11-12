@@ -9,7 +9,10 @@ import type {
   PracticeItem,
   PracticeOutcome,
 } from "@/domains/education";
-import { NORMALIZED_EXACT_MATCH_CRITERION } from "@/domains/education";
+import {
+  NORMALIZED_EXACT_MATCH_CRITERION,
+  NORMALIZED_EXACT_MATCH_CRITERION_VERSION,
+} from "@/domains/education";
 
 type PageRow = { id: string; title: string };
 
@@ -174,7 +177,9 @@ export class SupabaseEducationalPracticeRepository
         difficulty: input.difficulty,
         evidence_mode: objective ? "criterion_exact_match" : "self_assessment",
         criterion: objective ? NORMALIZED_EXACT_MATCH_CRITERION : null,
-        criterion_version: objective ? "1" : null,
+        criterion_version: objective
+          ? NORMALIZED_EXACT_MATCH_CRITERION_VERSION
+          : null,
         minimum_evidence: input.minimumEvidence ?? 2,
       })
       .select("*")
