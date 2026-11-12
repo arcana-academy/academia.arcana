@@ -16,7 +16,7 @@ vi.mock("@/infrastructure/integrations/open-source-ai-gateway", () => ({
   invokeOpenSourceAi: mocks.invokeOpenSourceAi,
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 function jsonRequest(body: unknown) {
   return new Request("https://app.example/api/ia-aberta", {
@@ -40,6 +40,26 @@ describe("POST /api/ia-aberta security contract", () => {
       data: [{ allowed: true, rate_limit: 20, remaining: 19, retry_after_seconds: 60 }],
       error: null,
     });
+  });
+
+  it("exposes catalog status without claiming unsupported gateways are invocable", async () => {
+    const response = await GET();
+    const body = await response.json();
+    const integrations = body.integrations as Array<{
+      id: string;
+      gatewaySupported: boolean;
+      invocationEligible: boolean;
+    }>;
+    expect(integrations.find((item) => item.id === "ollama")?.gatewaySupported).toBe(true);
+    expect(integrations.find((item) => item.id === "weaviate")?.gatewaySupported).toBe(false);
+    expect(integrations.find((item) => item.id === "weaviate")?.invocationEligible).toBe(false);
+  });
+
+  it("rejects a catalog-only provider before consuming an AI quota", async () => {
+    const response = await POST(jsonRequest({ ...validBody, provider: "langchain" }));
+    expect(response.status).toBe(400);
+    expect(mocks.consumeRateLimit).not.toHaveBeenCalled();
+    expect(mocks.invokeOpenSourceAi).not.toHaveBeenCalled();
   });
 
   it("requires an authenticated user before parsing or invoking a provider", async () => {

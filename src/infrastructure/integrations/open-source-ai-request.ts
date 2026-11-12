@@ -1,9 +1,11 @@
 import {
-  openSourceAiIntegrations,
+  isOpenSourceAiGatewayEligible,
   type OpenSourceAiId,
 } from "./open-source-ai";
 
-export const MAX_OPEN_SOURCE_AI_REQUEST_BYTES = 256 * 1024;
+import { DEFAULT_JSON_REQUEST_BYTES } from "@/lib/http/bounded-json-request";
+
+export const MAX_OPEN_SOURCE_AI_REQUEST_BYTES = DEFAULT_JSON_REQUEST_BYTES;
 export const MAX_OPEN_SOURCE_AI_MESSAGE_CHARACTERS = 12_000;
 export const MAX_OPEN_SOURCE_AI_TOTAL_CHARACTERS = 40_000;
 export const MAX_OPEN_SOURCE_AI_OUTPUT_TOKENS = 4_096;
@@ -28,7 +30,7 @@ export function validateOpenSourceAiRequest(
   const body = value as Record<string, unknown>;
   if (
     typeof body.provider !== "string" ||
-    !openSourceAiIntegrations.some(({ id }) => id === body.provider) ||
+    !isOpenSourceAiGatewayEligible(body.provider as OpenSourceAiId) ||
     typeof body.model !== "string" ||
     !body.model.trim() ||
     body.model.length > 200 ||
@@ -89,51 +91,5 @@ export function validateOpenSourceAiRequest(
   };
 }
 
-export type BoundedJsonResult =
-  | { readonly ok: true; readonly value: unknown }
-  | { readonly ok: false; readonly status: 400 | 413 };
-
-/** Reads JSON with a hard stream limit; Content-Length alone is not trusted. */
-export async function readBoundedJsonRequest(
-  request: Request,
-  maxBytes = MAX_OPEN_SOURCE_AI_REQUEST_BYTES,
-): Promise<BoundedJsonResult> {
-  const declaredLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    return { ok: false, status: 413 };
-  }
-  if (!request.body) return { ok: false, status: 400 };
-
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        return { ok: false, status: 413 };
-      }
-      chunks.push(value);
-    }
-  } catch {
-    return { ok: false, status: 400 };
-  } finally {
-    reader.releaseLock();
-  }
-
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  try {
-    return { ok: true, value: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) };
-  } catch {
-    return { ok: false, status: 400 };
-  }
-}
+// Keep the existing import surface for the IA Aberta route and tests.
+export { readBoundedJsonRequest, type BoundedJsonResult } from "@/lib/http/bounded-json-request";
