@@ -287,7 +287,14 @@ src/core/architecture/data-ownership.test.ts
 | public.educational_practice_attempts | table | education |
 | public.integration_credentials | table | infrastructure |
 | public.external_document_sources | table | infrastructure |
+| public.open_source_ai_rate_limits | table | infrastructure |
+| private.api_rate_limit_policies | table | infrastructure |
+| private.api_rate_limit_counters | table | infrastructure |
 | public.complete_study_task_with_reward | database-rpc | cross-domain |
+| public.consume_open_source_ai_rate_limit | database-rpc | infrastructure |
+| public.consume_api_rate_limit | database-rpc | infrastructure |
+| public.record_educational_practice_attempt | database-rpc | cross-domain (education, learning) |
+| public.record_criterion_referenced_practice_attempt | database-rpc | cross-domain (education, learning) |
 | public.move_workspace_page | database-rpc | learning |
 | storage.grimoire-covers | storage-bucket | learning |
 
@@ -324,6 +331,10 @@ The current implementation inventory is intentionally evidence-based.
 **Gamification**
 - Complete study task / reward orchestration
 
+**Education**
+- Criterion-referenced practice and evidence recording
+- Cloze practice, block sequencing, concept comparison, review queue and study itinerary
+
 **Intelligence**
 - Execute Mestre Arcano
 
@@ -339,7 +350,6 @@ The current implementation inventory is intentionally evidence-based.
 
 ### Domains with canonical contracts but no dedicated application use-case implementation currently visible
 
-- education
 - social
 - adaptive
 - trust
@@ -887,25 +897,19 @@ When the axes disagree, record the divergence explicitly and resolve it through 
 
 For architecture-local records this repository uses the **AA-ARCH-XXX** namespace. The Constitution's **AA-ADR-XXX** namespace remains authoritative whenever a decision has constitutional/global scope. Existing AA-ARCH records are not retroactively renamed solely for naming consistency.
 
-### 25.6 CI/CD semantic ordering
+### 25.6 CI/CD semantic ordering — historical incident and current freeze
 
-The canonical delivery semantics are:
+**Historical sequence examined on 2026-10-23 (not the active release policy):**
 
 ```text
-commit
-  ↓
-GitHub Actions — pre-deploy Quality Gate
-  ↓
-Render — commit promotion (main only receives gated merges)
-  ↓
-Application runtime
-  ↓
-Production Smoke — post-deploy verification
+commit → GitHub Actions Quality Gate → Render commit promotion → runtime → Production Smoke
 ```
 
-Production Smoke is evidence about the deployed runtime; it is not an input to the same Render promotion decision. Any future change that introduces a reverse dependency must be treated as an architecture regression and explicitly reviewed.
+Production Smoke is post-deployment evidence; it must never be used to trigger the very deployment it verifies.
 
-> **Implementation note (2026-10-23).** Render's `checksPass` trigger makes every check on the commit an input to the promotion decision, which includes Production Smoke and therefore reverses this ordering. The reverse dependency reproduced on `b808779`: the smoke saw the previous deployment, failed, and Render then withheld the deploy permanently. The Blueprint now uses `autoDeployTrigger: commit`, which is the only trigger that matches the canonical semantics above. See `docs/engineering/2026-10-23-render-promotion-deadlock.md`.
+> **Historical implementation note (2026-10-23; superseded as a release trigger).** Render's `checksPass` trigger made Production Smoke a prerequisite for promotion and reproduced a deadlock on `b808779`. At that time `autoDeployTrigger: commit` was considered to avoid the reverse dependency. See `docs/engineering/2026-10-23-render-promotion-deadlock.md`. This is incident history, **not** permission to enable automatic deployment.
+
+**Current policy:** `render.yaml` declares `autoDeployTrigger: "off"`. GitHub Actions may validate commits and candidates, but deployment is a separate manually authorized event **after** protected release gates. Until then, **NO-GO**: no automatic commit promotion, image publication or production smoke presented as evidence of a new release. Source configuration does not, by itself, attest to the live Render service setting.
 
 
 ## 26. Current canonical state
@@ -942,3 +946,28 @@ CONSOLIDAR
 ```
 
 The architecture remains a living system, but changes must be explicit, traceable and subordinate to the Constitution Master.
+
+
+---
+
+## 27. C136 isolated ownership and boundaries composition — 2026-10-30 (DRAFT / NO-GO)
+
+This is a **proposed four-file architecture-only integration** based on `main` at `b4f5eb3cdd345002349e7d9d30f826b4a57e5889`; it is not a deployment, hosted database attestation or production authorization. It does not bring the seven intervening commits from the C134 source checkout or the fourteen-file change set of draft PR #844 into this branch.
+
+### 27.1 SQL resource owners and dependency boundaries
+
+The versioned SQL files `20261024180000_durable_open_source_ai_rate_limit.sql` and `20261024181000_api_rate_limit.sql` define three quota tables and two authenticated quota RPCs. All five resources belong to **infrastructure**. The Education-owned practice tables `public.educational_practice_items` and `public.educational_practice_attempts` remain separate from Learning-owned `public.page_progress`; the two practice-to-progress RPCs are **cross-domain (education, learning)**. The local registry describes **25 resources** (18 tables, six database RPCs and one storage bucket); this count does not prove completeness or migrations in the hosted database.
+
+Core, domain and application use-case modules must not directly import concrete `src/infrastructure` adapters, `src/lib/supabase` clients or `@supabase/*` SDKs. The static architecture test checks literal alias and relative specifiers, re-exports and literal dynamic imports. It does not resolve computed dynamic expressions or all transitive dependencies. React composition in `src/application/providers` and Next routes or Server Actions in `src/app` is outside this use-case restriction.
+
+### 27.2 HTTP and provider work explicitly excluded
+
+The desired byte budgets are **16 KiB for Feedback, 64 KiB for Mestre Arcano, and 256 KiB for IA Aberta**, with HTTP 413 before full JSON parsing, quota consumption or provider invocation when exceeded. These targets are **not all enforced by this four-file patch**. At this `main` base, Feedback and Mestre Arcano still use `request.json()` directly; IA Aberta uses a bounded reader with a 256 KiB limit. Route-level work belongs in a separate change and requires its own tests.
+
+The draft PR #844 proposes additional bounded-request and provider-eligibility contracts. Its proposed code and historical checkpoints must **not** be represented as implemented in this branch merely because PR #844 exists. Catalog membership, locally supported chat adapters, runtime credentials and live provider reachability are distinct claims. No real inference call or hosted readiness validation is part of C136.
+
+### 27.3 Evidence, overlap and protected release gates
+
+The original C134 checkout passed 21 architecture tests, TypeScript, ESLint and `git diff --check` locally. Those results are historical evidence for the original checkout, **not automatic PASS for this new `main`-based composition**; C136-specific checks must be recorded against the actual branch. The overlapping Education ownership entries and this document require PR-level reconciliation with PR #844 before any future merge; PR #843 remains separate.
+
+Keep Render Auto Deploy OFF and **NO-GO**. Production deployment, GHCR/image release, hosted migrations, independent human QA/security review, #536 (runtime/build secret isolation), #594 (custody/backup/recovery), #595 (authorized decisions) and C03/ORG02 remain separately gated. No technical PASS in C136 waives those controls.
